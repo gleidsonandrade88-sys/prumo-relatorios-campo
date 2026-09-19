@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relatório de Solda · Prumo Engenharia — CQ Soldagem Aluminotérmica</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+    :root{
+        --laranja: #F26522;
+        --laranja-escuro: #C64F14;
+        --marrom: #413E3D;
+        --marrom-claro: #6B6564;
+        --fundo-app: #ECEDEF;
+        --papel: #FFFFFF;
+        --linha: #E1E3E6;
+        --texto: #2B2929;
+        --texto-suave: #6B6564;
+        --ok-bg:#E4F5E9; --ok-fg:#1E6B3C; --ok-borda:#B7E3C6;
+        --alerta-bg:#FFF4DC; --alerta-fg:#8A5D00; --alerta-borda:#F2D68B;
+        --erro-bg:#FBE4E1; --erro-fg:#9A2C1D; --erro-borda:#F1B8AE;
+    }
+    *{box-sizing:border-box;}
+    body{
+        font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+        background:
+            linear-gradient(180deg, var(--marrom) 0px, var(--marrom) 64px, var(--fundo-app) 64px);
+        margin:0; padding:20px 12px 60px; color:var(--texto);
+    }
+    .app-shell{ max-width:900px; margin:0 auto; }
+    .top-nav{
+        max-width:900px; margin:-20px auto 18px; padding:0 4px;
+        display:flex; align-items:center; gap:10px; height:64px; color:#fff;
+    }
+    .top-nav .mark{
+        width:34px; height:34px; border-radius:7px; background:var(--laranja);
+        display:flex; align-items:center; justify-content:center; font-weight:800; font-size:.85rem; letter-spacing:.5px;
+    }
+    .top-nav .app-title{ font-size:.82rem; letter-spacing:.4px; opacity:.9; }
+    .top-nav .app-title b{ display:block; font-size:.95rem; letter-spacing:.2px; }
+
+    .container{
+        background: var(--papel); border-radius:10px;
+        box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 10px 30px rgba(20,20,20,.08);
+        overflow:hidden;
+    }
+
+    /* Letterhead (também usado como topo do PDF) */
+    #letterhead{ padding:22px 24px 18px; border-bottom:4px solid var(--laranja); background:#fff; }
+    .lh-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+    .lh-brand{ display:flex; align-items:center; gap:12px; }
+    .logo-mark{
+        width:50px; height:50px; border-radius:10px; background:var(--laranja); color:#fff;
+        display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.15rem; flex:none;
+    }
+    .lh-brand-text b{ display:block; font-size:1.08rem; color:var(--marrom); letter-spacing:.2px; }
+    .lh-brand-text span{ font-size:.72rem; color:var(--texto-suave); text-transform:uppercase; letter-spacing:.6px; }
+    .lh-doc{ text-align:right; font-size:.72rem; color:var(--texto-suave); line-height:1.5; }
+    .lh-doc b{ color:var(--marrom); }
+    .lh-title{ margin-top:14px; font-size:1.05rem; font-weight:700; color:var(--marrom); letter-spacing:.2px; }
+    .lh-title small{ display:block; font-weight:500; font-size:.72rem; color:var(--texto-suave); margin-top:2px; letter-spacing:.4px; text-transform:uppercase; }
+
+    .config-hint{ font-size:.72rem; color:var(--texto-suave); margin-top:6px; line-height:1.5; }
+
+    /* Painel de pasta de trabalho / planilha geral */
+    .pasta-panel{ background:#fff; border-radius:10px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); display:grid; gap:8px; margin-bottom:2px; }
+    .pasta-panel .rotulo{ font-size:.74rem; font-weight:700; color:var(--texto-suave); text-transform:uppercase; letter-spacing:.4px; }
+    .btn-pasta{ background:var(--marrom); }
+    .btn-log{ background:#54514F; }
+    .link-inline{ background:none; border:none; color:var(--laranja-escuro); font-weight:700; cursor:pointer; text-decoration:underline; padding:0; font-size:.76rem; font-family:inherit; }
+
+    .gps-aviso{ background:var(--alerta-bg); color:var(--alerta-fg); border:1px solid var(--alerta-borda); padding:10px 12px; border-radius:6px; font-size:.78rem; margin-bottom:10px; line-height:1.5; }
+
+    .trava-clima.bloqueado{ opacity:.4; filter:grayscale(70%); pointer-events:none; user-select:none; position:relative; }
+
+    .pdf-block{ }
+    .header-bar{
+        background:var(--marrom); color:#fff; padding:10px 16px; font-weight:700;
+        text-transform:uppercase; font-size:.78rem; letter-spacing:.5px;
+        border-left:5px solid var(--laranja); margin-top:0;
+    }
+    .form-section{ padding:16px; }
+    .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+    .grid-4{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+
+    label{ display:block; font-size:.74rem; font-weight:700; color:var(--texto-suave); margin-top:8px; text-transform:uppercase; letter-spacing:.3px; }
+    input, select, textarea{
+        width:100%; padding:10px; border:1px solid #D6D8DB; border-radius:6px;
+        font-size:.92rem; margin-top:5px; background:#fff; text-transform:uppercase; color:var(--texto);
+        font-family:inherit;
+    }
+    input:focus, select:focus, textarea:focus{ outline:none; border-color:var(--laranja); box-shadow:0 0 0 3px rgba(242,101,34,.12); }
+    textarea{ text-transform:none; min-height:70px; resize:vertical; }
+    input[readonly]{ background:#F5F5F5; color:var(--texto-suave); }
+
+    .checklist-container{ border:1px solid var(--linha); border-radius:8px; overflow:hidden; margin-top:10px; }
+    .checklist-row{ display:grid; grid-template-columns:2fr 1fr 1fr; border-bottom:1px solid var(--linha); align-items:center; padding:16px 15px; background:#fff; text-transform:uppercase; }
+    .checklist-row:last-child{ border-bottom:none; }
+    .checklist-row > div:first-child{ word-break:break-word; text-align:left; font-weight:600; line-height:1.4; font-size:.88rem; color:var(--marrom); }
+    .checklist-row > div:nth-child(2), .checklist-row > div:nth-child(3){ text-align:right; }
+    .checklist-row:nth-child(even){ background:#FAFAFA; }
+    .opt{ display:inline-flex; align-items:center; gap:7px; font-size:.82rem; }
+    .opt input{ width:auto; margin:0; cursor:pointer; }
+
+    .clima-card{ background:#FFF6F0; padding:14px; border-radius:8px; border:1px solid #FBDCC7; margin-top:10px; }
+    .badge-orvalho{ background:var(--marrom); color:#fff; padding:11px; border-radius:5px; font-size:.83rem; margin:10px 0 0; text-align:center; font-weight:700; letter-spacing:.2px; }
+    .status-box{ padding:14px; border-radius:6px; text-align:center; font-weight:700; margin-top:10px; display:none; flex-direction:column; justify-content:center; border:2px solid transparent; }
+
+    .btn-main{ width:100%; padding:14px; border:none; border-radius:7px; cursor:pointer; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#fff; transition:filter .15s; font-size:.88rem; }
+    .btn-main:hover{ filter:brightness(1.06); }
+    .btn-main:disabled{ opacity:.65; cursor:not-allowed; }
+    .btn-pdf{ background:var(--laranja); }
+    .btn-excel{ background:#1D6F42; }
+    .btn-gps{ background:#0A5FB4; margin-top:0; }
+
+    .gps-meta{ font-size:.76rem; color:var(--texto-suave); margin-top:8px; text-align:center; min-height:16px; }
+    .gps-hint{ font-size:.72rem; color:var(--texto-suave); margin-top:6px; line-height:1.5; }
+    .gps-map-link{ display:none; text-align:center; margin-top:6px; font-size:.78rem; font-weight:700; color:var(--laranja-escuro); text-decoration:none; }
+
+    .preview-img{ width:100%; height:auto; min-height:150px; max-height:340px; object-fit:contain; border:1px solid #ddd; border-radius:5px; margin-top:5px; background:#F0F0F0; }
+    .foto-slot{ font-size:.78rem; }
+
+    .assinatura-box{ border:1px dashed #C9CCD0; border-radius:8px; padding:14px; margin-top:12px; background:#FAFAFA; }
+    .assinatura-linha{ display:flex; align-items:flex-start; gap:10px; font-size:.82rem; color:var(--texto); text-transform:none; }
+    .assinatura-linha input{ width:auto; margin-top:3px; flex:none; }
+
+    .actions{ padding:16px; max-width:900px; margin:0 auto; display:grid; gap:10px; }
+
+    .rodape-app{ max-width:900px; margin:18px auto 0; text-align:center; font-size:.72rem; color:var(--texto-suave); }
+
+    /* Estilos específicos para a captura (aplicados durante geração de PDF) */
+    .rendering-pdf input, .rendering-pdf select, .rendering-pdf textarea{ border:none !important; background:transparent !important; padding:2px !important; box-shadow:none !important; }
+    .rendering-pdf .btn-main, .rendering-pdf #btnGps{ display:none !important; }
+
+    @media (max-width:600px){
+        .grid-2{ grid-template-columns:1fr; }
+        .grid-3{ grid-template-columns:1fr; }
+        .grid-4{ grid-template-columns:repeat(2,1fr); }
+        .checklist-row{ grid-template-columns:1fr; row-gap:8px; }
+        .checklist-row > div:nth-child(2), .checklist-row > div:nth-child(3){ text-align:left; }
+        .lh-doc{ text-align:left; }
+        .lh-row{ flex-direction:column; }
+    }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+    <div class="top-nav">
+        <div class="mark">PE</div>
+        <div class="app-title"><b>Relatório de Solda</b>Prumo Engenharia · Caminho de Rolamento</div>
+        <a href="index.html" style="margin-left:auto; color:#fff; font-size:.78rem; text-decoration:none; opacity:.85; white-space:nowrap;">← Início</a>
+    </div>
+
+    <div id="avisoBibliotecas" class="gps-aviso" style="display:none; max-width:900px; margin:0 auto 14px;"></div>
+
+    <div class="container" id="capture-area">
+
+        <div id="letterhead">
+            <div class="lh-row">
+                <div class="lh-brand">
+                    <div class="logo-mark">PE</div>
+                    <div class="lh-brand-text">
+                        <b>Prumo Engenharia</b>
+                        <span>Manutenção Industrial · Caminho de Rolamento</span>
+                    </div>
+                </div>
+                <div class="lh-doc">
+                    Relatório N°: <b id="lhNumero">—</b><br>
+                    Documento: <b id="lhCodigo">RDO-SOLDA</b><br>
+                    Revisão: <b>04</b> &nbsp;·&nbsp; Cliente: <b id="lhCliente">VALE</b><br>
+                    Emitido em: <b id="lhData">--/--/----</b>
+                </div>
+            </div>
+            <div class="lh-title">
+                <span id="lhTitulo">Controle de Qualidade — Soldagem Aluminotérmica</span>
+                <small>Relatório Diário de Obra · Registro técnico e fotográfico</small>
+            </div>
+        </div>
+
+        <div class="pdf-block">
+            <div class="header-bar">Identificação</div>
+            <div class="form-section">
+                <div class="grid-2">
+                    <div><label>Gerência:</label><input type="text" id="gerencia"></div>
+                    <div><label>Data:<span style="color:red;">*</span></label><input type="date" id="dataRel" onchange="atualizarLetterhead()"></div>
+                </div>
+                <div class="grid-3">
+                    <div><label>Contrato:</label><input type="text" id="contrato"></div>
+                    <div><label>N° OM:</label><input type="text" id="om" oninput="atualizarLetterhead()"></div>
+                    <div><label>Turno:</label><select id="turno"><option>Manhã</option><option>Tarde</option><option>Noite</option></select></div>
+                </div>
+                <div class="grid-3">
+                    <div><label>Fiscal VALE — Gerenciadora:</label><input type="text" id="fiscal"></div>
+                    <div><label>Gestor do Contrato:</label><input type="text" id="gestor"></div>
+                    <div><label>Equipamento:</label><input type="text" id="equip"></div>
+                </div>
+                <div class="grid-3">
+                    <div><label>Balizamento:</label><input type="text" id="baliza"></div>
+                    <div><label>Posição do Trilho:</label><select id="idTrilhoABC"><option>Trilho A</option><option>Trilho B</option><option>Trilho C</option><option>Trilho D</option></select></div>
+                    <div><label>Perfil do Trilho:</label><select id="perfilTrilho"><option>CR-175</option><option>TR-68</option><option>TR-57</option></select></div>
+                </div>
+                <div class="grid-2">
+                    <div><label>Boletim de Medição:</label><input type="text" id="boletim" placeholder="Ex: BM05"></div>
+                    <div><label>Identificação da Solda:</label><input type="text" id="idSolda" placeholder="Ex: 113.005.3.0095 ou Não informado"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="pdf-block">
+            <div class="header-bar">1. Condições Ambientais</div>
+            <div class="form-section">
+                <div class="clima-card">
+                    <div class="grid-4">
+                        <div><label>Temp. Amb (°C):<span style="color:red;">*</span></label><input type="number" id="tAmb" required oninput="validarClima()"></div>
+                        <div><label>Umidade (%):<span style="color:red;">*</span></label><input type="number" id="umidade" required oninput="validarClima()"></div>
+                        <div><label>Temp. Trilho (°C):<span style="color:red;">*</span></label><input type="number" id="tTrilho" required oninput="validarClima()"></div>
+                        <div><label>Clima:<span style="color:red;">*</span></label><select id="clima" required onchange="validarClima()"><option value="">Selecione...</option><option value="Limpo">Limpo</option><option value="Nublado">Nublado</option><option value="Chuva">Chuva</option></select></div>
+                    </div>
+                    <div id="displayOrvalho" class="badge-orvalho">Ponto de Orvalho: --</div>
+                    <input type="hidden" id="pontoOrvalhoValor" value="">
+                    <div id="statusPainel" class="status-box">
+                        <div id="statusTitulo"></div>
+                        <div id="statusDelta" style="font-size:.9rem; margin:5px;"></div>
+                        <div id="statusDesc" style="font-size:.75rem; font-weight:normal;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="avisoTravaClima" class="gps-aviso" style="margin:0 16px 14px;">🔒 Preencha Temperatura Ambiente, Umidade, Temperatura do Trilho e Clima acima para liberar o restante do relatório. É a partir daí que o resultado de aprovação aparece.</div>
+
+        <div class="pdf-block trava-clima">
+            <div class="header-bar">2. Dados Técnicos da Solda</div>
+            <div class="form-section">
+                <div class="checklist-container">
+                    <div class="checklist-row"><div>Obtenção da Folga</div><div class="opt"><input type="radio" name="folga" value="Sim"> Sim</div><div class="opt"><input type="radio" name="folga" value="Não"> Não</div></div>
+                    <div class="checklist-row"><div>Limpeza das Pontas</div><div class="opt"><input type="radio" name="limpeza" value="Sim"> Sim</div><div class="opt"><input type="radio" name="limpeza" value="Não"> Não</div></div>
+                    <div class="checklist-row"><div>Alinhamento Horiz.</div><div class="opt"><input type="radio" name="alinhamento" value="Sim"> Sim</div><div class="opt"><input type="radio" name="alinhamento" value="Não"> Não</div></div>
+                    <div class="checklist-row"><div>Nivelamento Vert.</div><div class="opt"><input type="radio" name="nivelamento" value="Sim"> Sim</div><div class="opt"><input type="radio" name="nivelamento" value="Não"> Não</div></div>
+                    <div class="checklist-row"><div>Execução Nivel.</div><div class="opt"><input type="radio" name="execNivelamento" value="Cavaletes"> Cavaletes</div><div class="opt"><input type="radio" name="execNivelamento" value="Cunhas"> Cunhas</div></div>
+                    <div class="checklist-row"><div>Vedação</div><div class="opt"><input type="radio" name="vedacao" value="Ok"> Ok</div><div class="opt"><input type="radio" name="vedacao" value="Irregular"> Irregular</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="pdf-block trava-clima">
+            <div class="header-bar">3. Configuração de Aquecimento</div>
+            <div class="form-section">
+                <div class="checklist-container">
+                    <div class="checklist-row"><div>Maçarico</div><div class="opt"><input type="radio" name="mac" value="32 Furos (SkV)"> 32 Furos (SkV)</div><div class="opt"><input type="radio" name="mac" value="22 Furos (SmW)"> 22 Furos (SmW)</div></div>
+                    <div class="checklist-row"><div>Pressão Oxigênio (O2)</div><div class="opt"><input type="radio" name="po2" value="4 Bar (SmW)"> 4 Bar (SmW)</div><div class="opt"><input type="radio" name="po2" value="5 Bar (SkV)"> 5 Bar (SkV)</div></div>
+                    <div class="checklist-row"><div>Pressão GLP</div><div class="opt"><input type="radio" name="pglp" value="2 Bar (Padrão)" checked> 2 Bar (Padrão)</div><div class="opt">—</div></div>
+                </div>
+                <div class="grid-2">
+                    <div><label>Pré-aquecimento (min):</label><input type="number" id="tPre"></div>
+                    <div><label>Corrida Aço (seg):</label><input type="number" id="tCor"></div>
+                </div>
+                <div class="grid-2">
+                    <div><label>Início Esmerilhamento:</label><input type="time" id="tIni"></div>
+                    <div><label>Fim Esmerilhamento:</label><input type="time" id="tFim"></div>
+                </div>
+                <div><label>ID da Porção:</label><input type="text" id="idPorcao"></div>
+            </div>
+        </div>
+
+        <div class="pdf-block trava-clima">
+            <div class="header-bar">4. Localização (GPS)</div>
+            <div class="form-section" style="background:#F5F8FB;">
+                <div id="gpsAvisoInseguro" class="gps-aviso" style="display:none;">⚠️ Este arquivo foi aberto sem conexão segura (https://). Por política de segurança do próprio navegador, isso bloqueia a captura automática de GPS neste aparelho. Preencha Latitude/Longitude manualmente abaixo, ou tire as fotos com a localização do celular ativada — se o celular gravar isso na foto, o formulário extrai as coordenadas sozinho.</div>
+                <button type="button" class="btn-main btn-gps" id="btnGps" onclick="capturarLocalizacao(event)">Capturar GPS Agora</button>
+                <div class="gps-meta" id="gpsPrecisao"></div>
+                <a href="#" id="linkMapa" target="_blank" rel="noopener" class="gps-map-link">📍 Ver localização no mapa</a>
+                <div class="grid-2">
+                    <div><label>Latitude:</label><input type="text" id="lat" inputmode="decimal" placeholder="Preencha manualmente se o GPS falhar"></div>
+                    <div><label>Longitude:</label><input type="text" id="long" inputmode="decimal" placeholder="Preencha manualmente se o GPS falhar"></div>
+                </div>
+                <div class="gps-hint">As coordenadas podem ser: capturadas pelo botão acima, reconhecidas automaticamente na foto (metadados EXIF) ou digitadas manualmente. Importante: fotos reenviadas por WhatsApp perdem esses metadados — para o reconhecimento automático funcionar, anexe a foto original tirada pela câmera do celular.</div>
+            </div>
+        </div>
+
+        <div class="pdf-block trava-clima">
+            <div class="header-bar">5. Registro Fotográfico</div>
+            <div class="form-section" style="background:#F5F8FB;">
+                <div class="grid-2">
+                    <div class="foto-slot"><label>Preparação da Junta:</label><input type="file" accept="image/*" onchange="preview(this,'v1')"><img id="v1" class="preview-img" src=""></div>
+                    <div class="foto-slot"><label>Aquecimento / Corrida:</label><input type="file" accept="image/*" onchange="preview(this,'v2')"><img id="v2" class="preview-img" src=""></div>
+                </div>
+                <div class="grid-2" style="margin-top:12px;">
+                    <div class="foto-slot"><label>Solda Final:</label><input type="file" accept="image/*" onchange="preview(this,'v3')"><img id="v3" class="preview-img" src=""></div>
+                    <div class="foto-slot"><label>Acabamento / Esmerilhamento:</label><input type="file" accept="image/*" onchange="preview(this,'v4')"><img id="v4" class="preview-img" src=""></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="pdf-block trava-clima">
+            <div class="header-bar">6. Validação e Responsáveis</div>
+            <div class="form-section">
+                <div class="grid-2">
+                    <div><label>Soldador:<span style="color:red;">*</span></label>
+                        <input type="text" id="soldador" required list="listaSoldadores" placeholder="Digite o nome do soldador" autocomplete="off">
+                        <datalist id="listaSoldadores"><option value="José Ribamar Campos"><option value="Hudson Pereira"></datalist>
+                    </div>
+                    <div><label>Matrícula Soldador:<span style="color:red;">*</span></label><input type="text" id="matSoldador" required placeholder="Ex: 12345"></div>
+                </div>
+                <div class="grid-2">
+                    <div><label>Função do Responsável Prumo:<span style="color:red;">*</span></label>
+                        <select id="tipoCargo" required onchange="atualizarAssinCargo()"><option value="">Selecione...</option><option value="Encarregado">Encarregado</option><option value="Feitor">Feitor</option></select>
+                    </div>
+                    <div><label>Nome do Responsável:<span style="color:red;">*</span></label>
+                        <input type="text" id="assinCargo" required list="listaResponsaveis" placeholder="Digite o nome do responsável" autocomplete="off">
+                        <datalist id="listaResponsaveis"></datalist>
+                    </div>
+                </div>
+                <div><label>Matrícula Responsável:<span style="color:red;">*</span></label><input type="text" id="matResponsavel" required placeholder="Ex: 54321"></div>
+                <div><label>Observações Gerais:</label><textarea id="obsGerais" placeholder="Ocorrências, ressalvas, condições de acesso, etc."></textarea></div>
+
+                <div class="assinatura-box">
+                    <label class="assinatura-linha">
+                        <input type="checkbox" id="declaracao" required>
+                        <span>Declaro que as informações registradas neste relatório são verdadeiras e refletem a execução do serviço em campo na data informada.<span style="color:red;">*</span></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="pasta-panel">
+        <div class="rotulo">Onde salvar os arquivos</div>
+        <button type="button" class="btn-main btn-pasta" id="btnPasta" onclick="escolherPasta()">📁 Escolher Pasta de Trabalho (salvar automático)</button>
+        <div class="gps-meta" id="pastaStatus">Nenhuma pasta selecionada — os PDFs vão para a pasta padrão de Downloads do aparelho.</div>
+        <button type="button" class="btn-main btn-log" onclick="baixarPlanilhaGeral()">📒 Baixar Planilha Geral desta Sessão</button>
+        <div class="config-hint">No computador (Chrome ou Edge), "Escolher Pasta de Trabalho" faz o PDF, as fotos e um arquivo <b>Registro_Geral_Solda.csv</b> caírem sempre na mesma pasta, com uma linha nova por relatório — e é essa pasta que também mantém a numeração sequencial dos relatórios (N° 0001, 0002...) certa entre um dia e outro. <b>Vinculado ao SharePoint corporativo:</b> escolha uma pasta dentro da biblioteca do SharePoint que já esteja sincronizada pelo OneDrive no computador — os arquivos sobem sozinhos para o SharePoint, sem nenhuma configuração extra. Esse recurso ainda não existe no iPhone/Safari — nesses aparelhos, a numeração só conta os relatórios gerados na sessão atual, e use o botão "Baixar Planilha Geral" para exportar o resumo de tudo que foi gerado.</div>
+    </div>
+
+    <div class="actions">
+        <button class="btn-main btn-pdf" id="btnPdf" onclick="gerarPDF()">Gerar Relatório em PDF</button>
+        <button class="btn-main btn-excel" onclick="baixarPlanilha()">Baixar Planilha Excel (deste Relatório)</button>
+    </div>
+
+    <div class="rodape-app">Relatório de Solda · Prumo Engenharia — uso interno de campo</div>
+</div>
+
+<script>
+/* Rede de segurança: se algo quebrar (erro de script, promessa rejeitada), mostra
+   um alerta com a mensagem exata em vez de o botão "simplesmente não fazer nada".
+   Isso é essencial para diagnosticar problemas remotamente em celulares de campo. */
+window.addEventListener('error', function (ev) {
+    console.error('Erro não tratado:', ev.error || ev.message);
+    alert('⚠️ Ocorreu um erro inesperado no formulário:\n\n' + (ev.message || 'erro desconhecido') +
+        (ev.filename ? '\n(linha ' + ev.lineno + ')' : '') +
+        '\n\nTire um print desta mensagem e envie para o suporte.');
+});
+window.addEventListener('unhandledrejection', function (ev) {
+    console.error('Promessa rejeitada sem tratamento:', ev.reason);
+    alert('⚠️ Ocorreu um erro inesperado ao processar uma ação:\n\n' + (ev.reason && ev.reason.message ? ev.reason.message : ev.reason) +
+        '\n\nTire um print desta mensagem e envie para o suporte.');
+});
+
+let pastaHandle = null;
+let pastaHandlePendente = null;
+let registroSessao = [];
+
+/* ===================== MEMÓRIA DA PASTA ESCOLHIDA (entre sessões) ===================== */
+const DB_NOME = 'prumo_pasta_trabalho';
+const DB_STORE = 'handles';
+const DB_CHAVE_PASTA = 'pastaTrabalho';
+
+function abrirDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NOME, 1);
+        req.onupgradeneeded = () => { req.result.createObjectStore(DB_STORE); };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function salvarHandlePasta(handle) {
+    try {
+        const db = await abrirDB();
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction(DB_STORE, 'readwrite');
+            tx.objectStore(DB_STORE).put(handle, DB_CHAVE_PASTA);
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) { console.log('Não foi possível lembrar esta pasta para a próxima vez', e); }
+}
+
+async function carregarHandlePastaSalva() {
+    try {
+        const db = await abrirDB();
+        return await new Promise((resolve, reject) => {
+            const tx = db.transaction(DB_STORE, 'readonly');
+            const req = tx.objectStore(DB_STORE).get(DB_CHAVE_PASTA);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+        });
+    } catch (e) { return null; }
+}
+
+function atualizarStatusPasta() {
+    document.getElementById('pastaStatus').innerText = `📁 Salvando automaticamente em "${pastaHandle.name}" (PDF, fotos e Registro_Geral_Solda.csv)`;
+    document.getElementById('btnPasta').innerText = '📁 Trocar Pasta de Trabalho';
+}
+
+async function reconectarPasta() {
+    if (!pastaHandlePendente) return;
+    try {
+        const permissao = await pastaHandlePendente.requestPermission({ mode: 'readwrite' });
+        if (permissao === 'granted') {
+            pastaHandle = pastaHandlePendente;
+            atualizarStatusPasta();
+        } else {
+            alert('Permissão não concedida para a pasta salva. Escolha a pasta novamente.');
+        }
+    } catch (e) {
+        alert('Não foi possível reconectar à pasta salva (ela pode ter sido movida ou apagada). Escolha novamente.');
+    }
+}
+
+async function tentarReconectarPastaSalva() {
+    const handleSalvo = await carregarHandlePastaSalva();
+    if (!handleSalvo) return;
+    try {
+        const permissao = await handleSalvo.queryPermission({ mode: 'readwrite' });
+        if (permissao === 'granted') {
+            pastaHandle = handleSalvo;
+            atualizarStatusPasta();
+        } else {
+            pastaHandlePendente = handleSalvo;
+            document.getElementById('pastaStatus').innerHTML = `📁 Pasta salva: "${handleSalvo.name}" — <button type="button" class="link-inline" onclick="reconectarPasta()">🔓 Reconectar</button>`;
+        }
+    } catch (e) {
+        console.log('Referência de pasta salva não é mais válida', e);
+    }
+}
+
+function atualizarAssinCargo() {
+    const cargo = document.getElementById('tipoCargo').value;
+    const datalist = document.getElementById('listaResponsaveis');
+    datalist.innerHTML = '';
+    const sugestoes = (cargo === "Encarregado") ? ["Genilson Cutrim"] : ["José Ribamar", "Marlon Rabelo"];
+    sugestoes.forEach(nome => {
+        const opt = document.createElement('option');
+        opt.value = nome;
+        datalist.appendChild(opt);
+    });
+}
+window.onload = () => {
+    atualizarAssinCargo();
+    const hoje = new Date();
+    document.getElementById('dataRel').value = hoje.toISOString().slice(0,10);
+    atualizarLetterhead();
+    if (!window.isSecureContext) {
+        document.getElementById('gpsAvisoInseguro').style.display = 'block';
+    }
+    tentarReconectarPastaSalva();
+    verificarBibliotecas();
+    atualizarBloqueioFormulario();
+};
+
+function verificarBibliotecas() {
+    const faltando = [];
+    if (typeof window.jspdf === 'undefined') faltando.push('geração de PDF (jsPDF)');
+    if (typeof window.html2canvas === 'undefined') faltando.push('captura das páginas (html2canvas)');
+    if (typeof window.piexif === 'undefined') faltando.push('leitura de GPS da foto (piexifjs)');
+    if (typeof window.JSZip === 'undefined') faltando.push('empacotamento em ZIP (JSZip)');
+    if (faltando.length > 0) {
+        const el = document.getElementById('avisoBibliotecas');
+        el.style.display = 'block';
+        el.innerHTML = `⚠️ Algumas funções deste formulário não carregaram corretamente: <b>${faltando.join(', ')}</b>. Isso normalmente acontece quando a rede/Wi-Fi bloqueia o carregamento de scripts externos (cdnjs.cloudflare.com). As fotos ainda podem ser anexadas normalmente, mas gerar o PDF pode falhar. Tente em outra rede (dados móveis, por exemplo) ou peça para o TI liberar esse endereço.`;
+    }
+}
+
+function atualizarLetterhead() {
+    const om = document.getElementById('om').value || 'S/N';
+    const data = document.getElementById('dataRel').value;
+    document.getElementById('lhCodigo').innerText = `RDO-SOLDA-${om}`;
+    if (data) {
+        const [ano, mes, dia] = data.split('-');
+        document.getElementById('lhData').innerText = `${dia}/${mes}/${ano}`;
+    }
+}
+
+function preview(input, id) {
+    if (input.files && input.files[0]) {
+        const arquivo = input.files[0];
+        const reader = new FileReader();
+        reader.onload = e => {
+            document.getElementById(id).src = e.target.result;
+            try {
+                extrairGPSdaFoto(e.target.result);
+            } catch (err) {
+                console.log('Falha ao ler metadados da foto (a foto foi anexada normalmente):', err);
+            }
+        };
+        reader.onerror = () => {
+            alert('⚠️ Não foi possível carregar esta foto. Tente novamente ou escolha outra imagem.');
+        };
+        reader.readAsDataURL(arquivo);
+    }
+}
+
+function extrairGPSdaFoto(dataUrl) {
+    const statusEl = document.getElementById('gpsPrecisao');
+    try {
+        const exifData = piexif.load(dataUrl);
+        const gps = exifData.GPS;
+        if (!gps || !gps[piexif.GPSIFD.GPSLatitude] || !gps[piexif.GPSIFD.GPSLongitude]) {
+            console.log("Foto não contém dados de GPS nos metadados.");
+            if (statusEl && !document.getElementById('lat').value) {
+                statusEl.innerText = "Esta foto não tem localização gravada (comum em fotos reenviadas por WhatsApp, que apagam esses dados — use a foto original da câmera).";
+            }
+            return;
+        }
+        const lat = converterGPS(gps[piexif.GPSIFD.GPSLatitude], gps[piexif.GPSIFD.GPSLatitudeRef]);
+        const lon = converterGPS(gps[piexif.GPSIFD.GPSLongitude], gps[piexif.GPSIFD.GPSLongitudeRef]);
+        if (lat !== null && lon !== null) {
+            document.getElementById('lat').value = lat.toFixed(6);
+            document.getElementById('long').value = lon.toFixed(6);
+            if (statusEl) statusEl.innerText = "📍 Latitude/Longitude reconhecidas automaticamente pela foto adicionada.";
+            const linkMapa = document.getElementById('linkMapa');
+            linkMapa.href = `https://www.google.com/maps?q=${lat},${lon}`;
+            linkMapa.style.display = 'inline-block';
+        }
+    } catch (error) {
+        console.log("Erro ao ler metadados EXIF da foto:", error);
+        if (statusEl && !document.getElementById('lat').value) {
+            statusEl.innerText = "Não foi possível ler os metadados desta foto (formato sem EXIF, ex: PNG, ou dados corrompidos).";
+        }
+    }
+}
+
+function converterGPS(coord, ref) {
+    try {
+        const graus = coord[0][0] / coord[0][1];
+        const minutos = coord[1][0] / coord[1][1] / 60;
+        const segundos = coord[2][0] / coord[2][1] / 3600;
+        let decimal = graus + minutos + segundos;
+        if (ref === "S" || ref === "W") decimal = decimal * -1;
+        return decimal;
+    } catch (e) {
+        return null;
+    }
+}
+
+function atualizarBloqueioFormulario() {
+    const climaCompleto = document.getElementById('tAmb').value !== ''
+        && document.getElementById('umidade').value !== ''
+        && document.getElementById('tTrilho').value !== ''
+        && document.getElementById('clima').value !== '';
+
+    document.querySelectorAll('.trava-clima').forEach(bloco => {
+        bloco.classList.toggle('bloqueado', !climaCompleto);
+    });
+    const aviso = document.getElementById('avisoTravaClima');
+    if (aviso) aviso.style.display = climaCompleto ? 'none' : 'block';
+}
+
+function validarClima() {
+    atualizarBloqueioFormulario();
+    const tA = parseFloat(document.getElementById('tAmb').value);
+    const um = parseFloat(document.getElementById('umidade').value);
+    const tT = parseFloat(document.getElementById('tTrilho').value);
+    const cl = document.getElementById('clima').value;
+    const p = document.getElementById('statusPainel');
+    const badge = document.getElementById('displayOrvalho');
+
+    if (isNaN(tA) || isNaN(um)) return;
+    const orv = tA - ((100 - um) / 5);
+    badge.innerText = `Ponto de Orvalho Calculado: ${orv.toFixed(1)} °C`;
+    document.getElementById('pontoOrvalhoValor').value = orv.toFixed(1);
+
+    if (isNaN(tT) || !cl) return;
+    p.style.display = "flex";
+    const deltaT = (tT - orv).toFixed(1);
+    document.getElementById('statusDelta').innerText = `ΔT: ${deltaT}°C`;
+
+    if (tT > 45 || cl === "Chuva" || tT <= orv) {
+        p.style.backgroundColor = "var(--erro-bg)"; p.style.color = "var(--erro-fg)"; p.style.borderColor = "var(--erro-borda)";
+        document.getElementById('statusTitulo').innerText = "REPROVADO";
+        document.getElementById('statusDesc').innerText = tT > 45 ? "Temperatura Trilho > 45°C" : "Risco de Umidade/Orvalho";
+    } else if (deltaT < 3) {
+        p.style.backgroundColor = "var(--alerta-bg)"; p.style.color = "var(--alerta-fg)"; p.style.borderColor = "var(--alerta-borda)";
+        document.getElementById('statusTitulo').innerText = "RESSALVA / ALERTA";
+        document.getElementById('statusDesc').innerText = `Aquecer trilho até ${(orv + 3.1).toFixed(1)}°C`;
+    } else {
+        p.style.backgroundColor = "var(--ok-bg)"; p.style.color = "var(--ok-fg)"; p.style.borderColor = "var(--ok-borda)";
+        document.getElementById('statusTitulo').innerText = "APROVADO";
+        document.getElementById('statusDesc').innerText = "Condições dentro da norma técnica.";
+    }
+}
+
+/* ===================== GEOLOCALIZAÇÃO ===================== */
+async function capturarLocalizacao(ev) {
+    const btn = (ev && (ev.currentTarget || ev.target)) || document.getElementById('btnGps');
+    const textoOriginal = btn.innerText;
+
+    if (!window.isSecureContext) {
+        alert("⚠️ A geolocalização só funciona em conexão segura (https://).\n\nSe você abriu este arquivo direto do celular (file://), o GPS fica bloqueado pelo navegador. Hospede este formulário em um link https:// (servidor interno, SharePoint, etc.) para o GPS funcionar em campo.\n\nEnquanto isso, as coordenadas também podem ser extraídas automaticamente das fotos, se o celular gravar localização nos metadados.");
+        return;
+    }
+    if (!navigator.geolocation) {
+        alert("⚠️ Este navegador não suporta geolocalização.");
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerText = "Aguardando GPS...";
+
+    const tentarCaptura = (opcoes) => new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, opcoes);
+    });
+
+    try {
+        let pos;
+        try {
+            pos = await tentarCaptura({ enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+        } catch (erroPrimeiraTentativa) {
+            btn.innerText = "Tentando sinal aproximado...";
+            pos = await tentarCaptura({ enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 });
+        }
+
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const precisao = Math.round(pos.coords.accuracy || 0);
+        const hora = new Date(pos.timestamp).toLocaleTimeString('pt-BR');
+
+        document.getElementById('lat').value = lat.toFixed(6);
+        document.getElementById('long').value = lon.toFixed(6);
+        document.getElementById('gpsPrecisao').innerText = `Precisão: ±${precisao} m · capturado às ${hora}`;
+
+        const linkMapa = document.getElementById('linkMapa');
+        linkMapa.href = `https://www.google.com/maps?q=${lat},${lon}`;
+        linkMapa.style.display = 'inline-block';
+
+        btn.innerText = "GPS Capturado ✓";
+        setTimeout(() => { btn.innerText = "Capturar GPS Novamente"; btn.disabled = false; }, 1800);
+    } catch (erro) {
+        let mensagem = "Erro ao capturar GPS: ";
+        switch (erro.code) {
+            case erro.PERMISSION_DENIED:
+                mensagem += "Permissão negada. Vá em Configurações > Localização (do celular e do navegador) e permita o acesso para este site.";
+                break;
+            case erro.POSITION_UNAVAILABLE:
+                mensagem += "Posição indisponível. Tente em local aberto, longe de estruturas metálicas, com melhor sinal.";
+                break;
+            case erro.TIMEOUT:
+                mensagem += "Tempo expirado. Verifique se a localização do celular está ativada e tente novamente.";
+                break;
+            default:
+                mensagem += "Erro desconhecido. Verifique se a localização está ativada no celular.";
+        }
+        alert("⚠️ " + mensagem);
+        btn.disabled = false;
+        btn.innerText = "Tentar Novamente";
+    }
+}
+
+function valorRadio(nome) {
+    const el = document.querySelector(`input[name="${nome}"]:checked`);
+    return el ? el.value : '';
+}
+
+function validarCamposObrigatorios() {
+    const camposObrigatorios = [
+        { id: 'dataRel', nome: 'Data' },
+        { id: 'tAmb', nome: 'Temperatura Ambiente' },
+        { id: 'umidade', nome: 'Umidade' },
+        { id: 'tTrilho', nome: 'Temperatura Trilho' },
+        { id: 'clima', nome: 'Clima' },
+        { id: 'soldador', nome: 'Soldador' },
+        { id: 'matSoldador', nome: 'Matrícula Soldador' },
+        { id: 'tipoCargo', nome: 'Tipo de Cargo' },
+        { id: 'assinCargo', nome: 'Responsável Prumo' },
+        { id: 'matResponsavel', nome: 'Matrícula Responsável' }
+    ];
+
+    let erros = [];
+    for (let campo of camposObrigatorios) {
+        const elemento = document.getElementById(campo.id);
+        if (!elemento || !elemento.value || elemento.value === '') erros.push(campo.nome);
+    }
+    if (!document.getElementById('declaracao').checked) {
+        erros.push('Declaração de veracidade (marque a caixa de confirmação)');
+    }
+    if (erros.length > 0) {
+        alert("⚠️ Preencha os campos obrigatórios:\n\n• " + erros.join("\n• "));
+        return false;
+    }
+    return true;
+}
+
+// Nomes de coluna iguais aos das planilhas que já alimentam o Power BI da Prumo
+// (Bdados_Solda_Prumo + campos de BD-SOLDAS PRUMO_OFC), para importar sem remapeamento.
+function montarDadosLinha(nomeBase, numeroSequencial, agora) {
+    const dataV = document.getElementById('dataRel').value;
+    let dataRelFormatada = '';
+    if (dataV) {
+        const [ano, mes, dia] = dataV.split('-');
+        dataRelFormatada = `${dia}/${mes}/${ano}`;
+    }
+    return {
+        "ID": numeroSequencial,
+        "Gerência": document.getElementById('gerencia').value,
+        "Data": dataRelFormatada,
+        "Nº OM": document.getElementById('om').value,
+        "Fiscal Vale - Gerenciadora": document.getElementById('fiscal').value,
+        "Gestor do Contrato": document.getElementById('gestor').value,
+        "Equipamento": document.getElementById('equip').value,
+        "Balizamento": document.getElementById('baliza').value,
+        "Posição Trilho": document.getElementById('idTrilhoABC').value,
+        "Perfil Trilho": document.getElementById('perfilTrilho').value,
+        "Boletim de medição": document.getElementById('boletim').value,
+        "Identificação da Solda": document.getElementById('idSolda').value,
+        "Temperatura Ambiente (°C)": document.getElementById('tAmb').value,
+        "Umidade (%)": document.getElementById('umidade').value,
+        "Temperatura Trilho (°C)": document.getElementById('tTrilho').value,
+        "Clima": document.getElementById('clima').value,
+        "Ponto de Orvalho": document.getElementById('pontoOrvalhoValor').value,
+        "Obtenção da Folga": valorRadio('folga'),
+        "Limpeza das Pontas": valorRadio('limpeza'),
+        "Alinhamento Horizontal": valorRadio('alinhamento'),
+        "Nivelamento Vertical": valorRadio('nivelamento'),
+        "Execução do Nivelamento": valorRadio('execNivelamento'),
+        "Vedação": valorRadio('vedacao'),
+        "Maçarico": valorRadio('mac'),
+        "Pressão Oxigênio (O2)": valorRadio('po2'),
+        "Pressão GLP (bar)": valorRadio('pglp'),
+        "Pré-aquecimento (min)": document.getElementById('tPre').value,
+        "Corrida Aço (seg)": document.getElementById('tCor').value,
+        "Início Esmerilhamento": document.getElementById('tIni').value,
+        "Fim Esmerilhamento": document.getElementById('tFim').value,
+        "ID da Porção": document.getElementById('idPorcao').value,
+        "Latitude": document.getElementById('lat').value,
+        "Longitude": document.getElementById('long').value,
+        "Foto Preparação": document.getElementById('v1').src ? `${nomeBase}_Preparacao.jpg` : '',
+        "Foto Solda Final": document.getElementById('v3').src ? `${nomeBase}_SoldaFinal.jpg` : '',
+        "Soldador": document.getElementById('soldador').value,
+        "Responsável Prumo": document.getElementById('assinCargo').value,
+        "Função": (document.getElementById('tipoCargo').value || '').toUpperCase(),
+        // Campos extras (não existem nas planilhas oficiais, ficam no final e não atrapalham a importação)
+        "Contrato": document.getElementById('contrato').value,
+        "Turno": document.getElementById('turno').value,
+        "DeltaT": document.getElementById('statusDelta').innerText,
+        "Status_Aprovacao": document.getElementById('statusTitulo').innerText,
+        "Matricula_Soldador": document.getElementById('matSoldador').value,
+        "Matricula_Responsavel": document.getElementById('matResponsavel').value,
+        "Observacoes": (document.getElementById('obsGerais').value || '').replace(/;/g, ',').replace(/\n/g, ' '),
+        "DataHora_Geracao": agora,
+        "Arquivo_PDF": `${nomeBase}.pdf`
+    };
+}
+
+function gerarNomeBase(numeroFormatado) {
+    const om = document.getElementById('om').value || 'S_N';
+    const trilho = document.getElementById('idTrilhoABC').value || 'TRILHO';
+    const baliza = document.getElementById('baliza').value || 'S_BAL';
+    const equip = document.getElementById('equip').value || 'ATIVO';
+    const limpar = s => s.toString().trim().replace(/\s+/g, '_');
+    return `RDO_${numeroFormatado}_OM_${limpar(om)}_TRILHO_${limpar(trilho)}_BALIZ_${limpar(baliza)}_EQUIP_${limpar(equip)}`;
+}
+
+/* Descobre o próximo número sequencial do relatório.
+   Com pasta de trabalho escolhida: conta as linhas já existentes em Registro_Geral_Solda.csv (persiste de verdade, entre sessões).
+   Sem pasta escolhida: usa a contagem desta sessão do navegador apenas (reinicia se a página for fechada). */
+async function obterProximoNumero() {
+    if (pastaHandle) {
+        try {
+            const fileHandle = await pastaHandle.getFileHandle('Registro_Geral_Solda.csv', { create: false });
+            const file = await fileHandle.getFile();
+            const texto = await file.text();
+            const linhas = texto.split('\n').filter(l => l.trim() !== '');
+            const numDados = Math.max(linhas.length - 1, 0); // primeira linha é cabeçalho
+            return numDados + 1;
+        } catch (e) {
+            return 1; // Registro_Geral_Solda.csv ainda não existe nesta pasta: é o primeiro relatório
+        }
+    }
+    return registroSessao.length + 1;
+}
+
+/* ===================== GERAÇÃO DE PDF (por blocos, sem cortar conteúdo) ===================== */
+async function gerarPDF() {
+    if (!validarCamposObrigatorios()) return;
+
+    const btn = document.getElementById('btnPdf');
+    const textoOriginal = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = "Gerando PDF...";
+    document.body.classList.add('rendering-pdf');
+
+    try {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const margin = 8;
+        const usableW = pageW - margin * 2;
+        const footerH = 8;
+
+        const numeroSequencial = await obterProximoNumero();
+        const numeroFormatado = String(numeroSequencial).padStart(4, '0');
+        document.getElementById('lhNumero').innerText = numeroFormatado;
+
+        const nomeBase = gerarNomeBase(numeroFormatado);
+        const agora = new Date().toLocaleString('pt-BR');
+
+        const opcoesCaptura = { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false };
+
+        // Captura o cabeçalho (letterhead) separadamente — aparece só na 1ª página
+        const letterheadEl = document.getElementById('letterhead');
+        const chLetterhead = await html2canvas(letterheadEl, opcoesCaptura);
+        const hLetterhead = (chLetterhead.height * usableW) / chLetterhead.width;
+
+        // Captura cada bloco de conteúdo individualmente para que nenhum seja cortado no meio
+        const blocos = Array.from(document.querySelectorAll('.pdf-block'));
+        const capturas = [];
+        for (const bloco of blocos) {
+            const c = await html2canvas(bloco, opcoesCaptura);
+            capturas.push({ h: (c.height * usableW) / c.width, dataUrl: c.toDataURL('image/jpeg', 0.95) });
+        }
+
+        let paginaAtual = 1;
+        let y = margin;
+        pdf.addImage(chLetterhead.toDataURL('image/jpeg', 0.95), 'JPEG', margin, y, usableW, hLetterhead);
+        y += hLetterhead + 4;
+
+        capturas.forEach(({ h, dataUrl }) => {
+            const espacoDisponivel = pageH - margin - footerH - y;
+            if (h > espacoDisponivel && y > margin) {
+                desenharRodape(pdf, nomeBase, agora);
+                pdf.addPage();
+                paginaAtual++;
+                y = margin;
+            }
+            pdf.addImage(dataUrl, 'JPEG', margin, y, usableW, h);
+            y += h + 4;
+        });
+        desenharRodape(pdf, nomeBase, agora);
+
+        const totalPaginas = paginaAtual;
+        for (let i = 1; i <= totalPaginas; i++) {
+            pdf.setPage(i);
+            pdf.setFontSize(7.5);
+            pdf.setTextColor(120);
+            pdf.text(`Página ${i} de ${totalPaginas}`, pageW - margin, pageH - 3, { align: 'right' });
+        }
+
+        const dadosLinha = montarDadosLinha(nomeBase, numeroSequencial, agora);
+
+        if (pastaHandle) {
+            const pdfBlob = pdf.output('blob');
+            const okPdf = await salvarArquivoNaPasta(`${nomeBase}.pdf`, pdfBlob);
+
+            const fotos = [['v1','Preparacao'],['v2','Aquecimento'],['v3','SoldaFinal'],['v4','Acabamento']];
+            for (const [id, nomeFoto] of fotos) {
+                const src = document.getElementById(id).src;
+                if (src && src.startsWith('data:')) {
+                    try {
+                        const res = await fetch(src);
+                        const blob = await res.blob();
+                        await salvarArquivoNaPasta(`${nomeBase}_${nomeFoto}.jpg`, blob);
+                    } catch (e) { console.log('Falha ao salvar foto', id, e); }
+                }
+            }
+
+            const okPlanilha = await registrarNaPlanilha(dadosLinha);
+
+            if (okPdf) {
+                alert(`✅ Relatório e fotos salvos em "${pastaHandle.name}"` + (okPlanilha ? ` e registrados em Registro_Geral_Solda.csv.` : `. (Não foi possível atualizar a planilha automaticamente — use "Baixar Planilha Geral".)`));
+            } else {
+                alert("⚠️ Não foi possível salvar direto na pasta (permissão perdida?). Baixando normalmente...");
+                await empacotarEBaixar(pdf, nomeBase);
+            }
+        } else {
+            await registrarNaPlanilha(dadosLinha);
+            await empacotarEBaixar(pdf, nomeBase);
+        }
+    } catch (erro) {
+        console.error(erro);
+        alert("⚠️ Erro ao gerar o PDF: " + erro.message);
+    } finally {
+        document.body.classList.remove('rendering-pdf');
+        btn.disabled = false;
+        btn.innerText = textoOriginal;
+    }
+}
+
+function desenharRodape(pdf, nomeBase, agora) {
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    pdf.setDrawColor(225);
+    pdf.line(8, pageH - 9, pageW - 8, pageH - 9);
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(120);
+    pdf.text(`${nomeBase} · Gerado em ${agora}`, 8, pageH - 3);
+}
+
+/* ===================== PASTA DE TRABALHO E PLANILHA GERAL ===================== */
+// Mesma ordem e nomes de coluna das planilhas que já alimentam o Power BI da Prumo
+// (tabelas Bdados_Solda_Prumo + BD-SOLDAS PRUMO_OFC), com os campos extras do formulário no final.
+const COLUNAS_REGISTRO = [
+    "ID","Gerência","Data","Nº OM","Fiscal Vale - Gerenciadora","Gestor do Contrato","Equipamento",
+    "Balizamento","Posição Trilho","Perfil Trilho","Boletim de medição","Identificação da Solda",
+    "Temperatura Ambiente (°C)","Umidade (%)","Temperatura Trilho (°C)","Clima","Ponto de Orvalho",
+    "Obtenção da Folga","Limpeza das Pontas","Alinhamento Horizontal","Nivelamento Vertical",
+    "Execução do Nivelamento","Vedação","Maçarico","Pressão Oxigênio (O2)","Pressão GLP (bar)",
+    "Pré-aquecimento (min)","Corrida Aço (seg)","Início Esmerilhamento","Fim Esmerilhamento","ID da Porção",
+    "Latitude","Longitude","Foto Preparação","Foto Solda Final","Soldador","Responsável Prumo","Função",
+    "Contrato","Turno","DeltaT","Status_Aprovacao","Matricula_Soldador","Matricula_Responsavel",
+    "Observacoes","DataHora_Geracao","Arquivo_PDF"
+];
+
+async function escolherPasta() {
+    if (!('showDirectoryPicker' in window)) {
+        alert("Este navegador não permite escolher uma pasta fixa para salvar automaticamente (hoje isso funciona no Chrome ou Edge de computador). Os arquivos vão continuar sendo baixados normalmente — use o botão \"Baixar Planilha Geral\" para ter o registro de tudo que foi gerado nesta sessão.");
+        return;
+    }
+    try {
+        pastaHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        await salvarHandlePasta(pastaHandle);
+        atualizarStatusPasta();
+    } catch (e) {
+        console.log('Seleção de pasta cancelada ou negada', e);
+    }
+}
+
+async function salvarArquivoNaPasta(nomeArquivo, blob) {
+    if (!pastaHandle) return false;
+    try {
+        const fh = await pastaHandle.getFileHandle(nomeArquivo, { create: true });
+        const writable = await fh.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return true;
+    } catch (e) {
+        console.error('Erro ao salvar arquivo na pasta', e);
+        return false;
+    }
+}
+
+async function registrarNaPlanilha(dadosLinha) {
+    registroSessao.push(dadosLinha);
+    if (!pastaHandle) return false;
+    try {
+        const nomeArquivo = 'Registro_Geral_Solda.csv';
+        let fileHandle, conteudoExistente = '';
+        try {
+            fileHandle = await pastaHandle.getFileHandle(nomeArquivo, { create: false });
+            const file = await fileHandle.getFile();
+            conteudoExistente = await file.text();
+        } catch (e) {
+            fileHandle = await pastaHandle.getFileHandle(nomeArquivo, { create: true });
+        }
+        const linhaCsv = COLUNAS_REGISTRO.map(c => (dadosLinha[c] || '').toString().replace(/;/g, ',')).join(";") + "\n";
+        const novoConteudo = (conteudoExistente && conteudoExistente.trim())
+            ? conteudoExistente + linhaCsv
+            : "\uFEFF" + COLUNAS_REGISTRO.join(";") + "\n" + linhaCsv;
+        const writable = await fileHandle.createWritable();
+        await writable.write(novoConteudo);
+        await writable.close();
+        return true;
+    } catch (e) {
+        console.error('Erro ao atualizar planilha na pasta', e);
+        return false;
+    }
+}
+
+function baixarPlanilhaGeral() {
+    if (registroSessao.length === 0) {
+        alert('Nenhum relatório foi gerado nesta sessão ainda.');
+        return;
+    }
+    let csv = "\uFEFF" + COLUNAS_REGISTRO.join(";") + "\n";
+    registroSessao.forEach(linha => {
+        csv += COLUNAS_REGISTRO.map(c => (linha[c] || '').toString().replace(/;/g, ',')).join(";") + "\n";
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Registro_Geral_Solda_Sessao.csv`;
+    link.click();
+}
+
+async function empacotarEBaixar(pdf, nomeBase) {
+    const zip = new JSZip();
+    zip.file(`${nomeBase}.pdf`, pdf.output('blob'));
+
+    const fotos = [
+        { id: 'v1', nome: 'Preparacao' },
+        { id: 'v2', nome: 'Aquecimento' },
+        { id: 'v3', nome: 'SoldaFinal' },
+        { id: 'v4', nome: 'Acabamento' }
+    ];
+
+    for (const foto of fotos) {
+        const src = document.getElementById(foto.id).src;
+        if (src && src.startsWith('data:')) {
+            try {
+                const res = await fetch(src);
+                const blob = await res.blob();
+                zip.file(`${nomeBase}_${foto.nome}.jpg`, blob);
+            } catch (e) {
+                console.log('Não foi possível anexar a foto', foto.id, e);
+            }
+        }
+    }
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${nomeBase}.zip`;
+    link.click();
+    alert("✅ Relatório, fotos e documentos baixados com sucesso!");
+}
+
+async function baixarPlanilha() {
+    if (!validarCamposObrigatorios()) return;
+
+    const numeroSequencial = await obterProximoNumero();
+    const numeroFormatado = String(numeroSequencial).padStart(4, '0');
+    const nomeBase = gerarNomeBase(numeroFormatado);
+    const agora = new Date().toLocaleString('pt-BR');
+    const dadosLinha = montarDadosLinha(nomeBase, numeroSequencial, agora);
+
+    let csv = "\uFEFF" + COLUNAS_REGISTRO.join(";") + "\n";
+    csv += COLUNAS_REGISTRO.map(c => (dadosLinha[c] || '').toString().replace(/;/g, ',')).join(";") + "\n";
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Planilha_Solda_OM_${document.getElementById('om').value || 'S_N'}_${document.getElementById('idTrilhoABC').value}_${document.getElementById('baliza').value || 'S_BAL'}_${document.getElementById('equip').value || 'ATIVO'}.csv`;
+    link.click();
+}
+</script>
+</body>
+</html>

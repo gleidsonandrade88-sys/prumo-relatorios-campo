@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inspeção de Talas de Junção · Prumo Engenharia</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+    :root{
+        --laranja: #F26522;
+        --laranja-escuro: #C64F14;
+        --marrom: #413E3D;
+        --marrom-claro: #6B6564;
+        --fundo-app: #ECEDEF;
+        --papel: #FFFFFF;
+        --linha: #E1E3E6;
+        --texto: #2B2929;
+        --texto-suave: #6B6564;
+        /* Paleta de criticidade oficial da Prumo (mesma do painel de indicadores de PCM) */
+        --normal-fg:#2E8B3D;  --normal-bg:#E3F2E7;  --normal-borda:#B8DDC0;
+        --atencao-fg:#D97A0F; --atencao-bg:#FCEEDC; --atencao-borda:#F3CE9C;
+        --critico-fg:#C0392B; --critico-bg:#FBE4E1; --critico-borda:#F0B8AE;
+    }
+    *{box-sizing:border-box;}
+    body{
+        font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+        background:
+            linear-gradient(180deg, var(--marrom) 0px, var(--marrom) 64px, var(--fundo-app) 64px);
+        margin:0; padding:20px 12px 60px; color:var(--texto);
+    }
+    .app-shell{ max-width:900px; margin:0 auto; }
+    .top-nav{
+        max-width:900px; margin:-20px auto 18px; padding:0 4px;
+        display:flex; align-items:center; gap:10px; height:64px; color:#fff;
+    }
+    .top-nav .mark{
+        width:34px; height:34px; border-radius:7px; background:var(--laranja);
+        display:flex; align-items:center; justify-content:center; font-weight:800; font-size:.85rem; letter-spacing:.5px;
+    }
+    .top-nav .app-title{ font-size:.82rem; letter-spacing:.4px; opacity:.9; }
+    .top-nav .app-title b{ display:block; font-size:.95rem; letter-spacing:.2px; }
+
+    .container{
+        background: var(--papel); border-radius:10px;
+        box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 10px 30px rgba(20,20,20,.08);
+        overflow:hidden;
+    }
+
+    /* Letterhead (também usado como topo do PDF) */
+    #letterhead{ padding:22px 24px 18px; border-bottom:4px solid var(--laranja); background:#fff; }
+    .lh-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+    .lh-brand{ display:flex; align-items:center; gap:12px; }
+    .logo-mark{
+        width:50px; height:50px; border-radius:10px; background:var(--laranja); color:#fff;
+        display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.15rem; flex:none;
+    }
+    .lh-brand-text b{ display:block; font-size:1.08rem; color:var(--marrom); letter-spacing:.2px; }
+    .lh-brand-text span{ font-size:.72rem; color:var(--texto-suave); text-transform:uppercase; letter-spacing:.6px; }
+    .lh-doc{ text-align:right; font-size:.72rem; color:var(--texto-suave); line-height:1.5; }
+    .lh-doc b{ color:var(--marrom); }
+    .lh-title{ margin-top:14px; font-size:1.05rem; font-weight:700; color:var(--marrom); letter-spacing:.2px; }
+    .lh-title small{ display:block; font-weight:500; font-size:.72rem; color:var(--texto-suave); margin-top:2px; letter-spacing:.4px; text-transform:uppercase; }
+
+    .config-hint{ font-size:.72rem; color:var(--texto-suave); margin-top:6px; line-height:1.5; }
+
+    /* Painel de pasta de trabalho / planilha geral */
+    .pasta-panel{ background:#fff; border-radius:10px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); display:grid; gap:8px; margin-bottom:2px; }
+    .pasta-panel .rotulo{ font-size:.74rem; font-weight:700; color:var(--texto-suave); text-transform:uppercase; letter-spacing:.4px; }
+    .btn-pasta{ background:var(--marrom); }
+    .btn-log{ background:#54514F; }
+    .link-inline{ background:none; border:none; color:var(--laranja-escuro); font-weight:700; cursor:pointer; text-decoration:underline; padding:0; font-size:.76rem; font-family:inherit; }
+
+    .gps-aviso{ background:var(--atencao-bg); color:var(--atencao-fg); border:1px solid var(--atencao-borda); padding:10px 12px; border-radius:6px; font-size:.78rem; margin-bottom:10px; line-height:1.5; }
+
+    .pdf-block{ }
+    .header-bar{
+        background:var(--marrom); color:#fff; padding:10px 16px; font-weight:700;
+        text-transform:uppercase; font-size:.78rem; letter-spacing:.5px;
+        border-left:5px solid var(--laranja); margin-top:0;
+    }
+    .header-bar.emergencia{ border-left-color:var(--critico-fg); }
+    .form-section{ padding:16px; }
+    .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+    .grid-4{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+
+    label{ display:block; font-size:.74rem; font-weight:700; color:var(--texto-suave); margin-top:8px; text-transform:uppercase; letter-spacing:.3px; }
+    input, select, textarea{
+        width:100%; padding:10px; border:1px solid #D6D8DB; border-radius:6px;
+        font-size:.92rem; margin-top:5px; background:#fff; text-transform:uppercase; color:var(--texto);
+        font-family:inherit;
+    }
+    input:focus, select:focus, textarea:focus{ outline:none; border-color:var(--laranja); box-shadow:0 0 0 3px rgba(242,101,34,.12); }
+    textarea{ text-transform:none; min-height:70px; resize:vertical; }
+    input[readonly]{ background:#F5F5F5; color:var(--texto-suave); }
+
+    .checklist-container{ border:1px solid var(--linha); border-radius:8px; overflow:hidden; margin-top:10px; }
+    .checklist-row{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr; border-bottom:1px solid var(--linha); align-items:center; padding:16px 15px; background:#fff; }
+    .checklist-row:last-child{ border-bottom:none; }
+    .checklist-row > div:first-child{ word-break:break-word; text-align:left; font-weight:600; line-height:1.4; font-size:.86rem; color:var(--marrom); text-transform:none; }
+    .checklist-row > div:not(:first-child){ text-align:left; }
+    .checklist-row:nth-child(even){ background:#FAFAFA; }
+    .opt{ display:flex; align-items:flex-start; gap:7px; font-size:.78rem; line-height:1.35; text-transform:none; }
+    .opt input{ width:auto; margin:2px 0 0; cursor:pointer; flex:none; }
+    .opt.opt-normal{ color:var(--normal-fg); }
+    .opt.opt-atencao{ color:var(--atencao-fg); }
+    .opt.opt-critico{ color:var(--critico-fg); font-weight:600; }
+
+    .status-box{ padding:16px; border-radius:8px; text-align:center; font-weight:700; margin-top:4px; display:flex; flex-direction:column; justify-content:center; border:2px solid transparent; }
+    .status-box.oculto{ display:none; }
+    .status-titulo{ font-size:1.05rem; letter-spacing:.3px; }
+    .status-desc{ font-size:.78rem; font-weight:500; margin-top:5px; }
+
+    .emergencia-banner{ padding:16px; border-radius:8px; text-align:center; font-weight:700; margin-top:10px; border:2px solid var(--critico-borda); background:var(--critico-bg); color:var(--critico-fg); display:none; }
+    .emergencia-banner.ativo{ display:block; }
+
+    .btn-main{ width:100%; padding:14px; border:none; border-radius:7px; cursor:pointer; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#fff; transition:filter .15s; font-size:.88rem; }
+    .btn-main:hover{ filter:brightness(1.06); }
+    .btn-main:disabled{ opacity:.65; cursor:not-allowed; }
+    .btn-pdf{ background:var(--laranja); }
+    .btn-excel{ background:#1D6F42; }
+    .btn-gps{ background:#0A5FB4; margin-top:0; }
+
+    .gps-meta{ font-size:.76rem; color:var(--texto-suave); margin-top:8px; text-align:center; min-height:16px; }
+    .gps-hint{ font-size:.72rem; color:var(--texto-suave); margin-top:6px; line-height:1.5; }
+    .gps-map-link{ display:none; text-align:center; margin-top:6px; font-size:.78rem; font-weight:700; color:var(--laranja-escuro); text-decoration:none; }
+
+    .preview-img{ width:100%; height:auto; min-height:150px; max-height:340px; object-fit:contain; border:1px solid #ddd; border-radius:5px; margin-top:5px; background:#F0F0F0; }
+    .foto-slot{ font-size:.78rem; }
+
+    .assinatura-box{ border:1px dashed #C9CCD0; border-radius:8px; padding:14px; margin-top:12px; background:#FAFAFA; }
+    .assinatura-linha{ display:flex; align-items:flex-start; gap:10px; font-size:.82rem; color:var(--texto); text-transform:none; }
+    .assinatura-linha input{ width:auto; margin-top:3px; flex:none; }
+
+    .actions{ padding:16px; max-width:900px; margin:0 auto; display:grid; gap:10px; }
+
+    .rodape-app{ max-width:900px; margin:18px auto 0; text-align:center; font-size:.72rem; color:var(--texto-suave); }
+
+    /* Estilos específicos para a captura (aplicados durante geração de PDF) */
+    .rendering-pdf input, .rendering-pdf select, .rendering-pdf textarea{ border:none !important; background:transparent !important; padding:2px !important; box-shadow:none !important; }
+    .rendering-pdf .btn-main, .rendering-pdf #btnGps{ display:none !important; }
+
+    @media (max-width:600px){
+        .grid-2{ grid-template-columns:1fr; }
+        .grid-3{ grid-template-columns:1fr; }
+        .grid-4{ grid-template-columns:repeat(2,1fr); }
+        .checklist-row{ grid-template-columns:1fr; row-gap:8px; }
+        .lh-doc{ text-align:left; }
+        .lh-row{ flex-direction:column; }
+    }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+    <div class="top-nav">
+        <div class="mark">PE</div>
+        <div class="app-title"><b>Inspeção de Talas</b>Prumo Engenharia · Caminho de Rolamento</div>
+        <a href="index.html" style="margin-left:auto; color:#fff; font-size:.78rem; text-decoration:none; opacity:.85; white-space:nowrap;">← Início</a>
+    </div>
+
+    <div id="avisoBibliotecas" class="gps-aviso" style="display:none; max-width:900px; margin:0 auto 14px;"></div>
+
+    <div class="container" id="capture-area">
+
+        <div id="letterhead">
+            <div class="lh-row">
+                <div class="lh-brand">
+                    <div class="logo-mark">PE</div>
+                    <div class="lh-brand-text">
+                        <b>Prumo Engenharia</b>
+                        <span>Manutenção Industrial · Caminho de Rolamento</span>
+                    </div>
+                </div>
+                <div class="lh-doc">
+                    Relatório N°: <b id="lhNumero">—</b><br>
+                    Documento: <b id="lhCodigo">INSP-TALA</b><br>
+                    Revisão: <b>01</b> &nbsp;·&nbsp; Cliente: <b id="lhCliente">VALE</b><br>
+                    Emitido em: <b id="lhData">--/--/----</b>
+                </div>
+            </div>
+            <div class="lh-title">
+                <span id="lhTitulo">Inspeção de Talas de Junção e Detecção de Trincas</span>
+                <small>Mapeamento e Controle de Ativos · Registro técnico e fotográfico</small>
+            </div>
+        </div>
+
+        <div class="pdf-block">
+            <div class="header-bar">Identificação</div>
+            <div class="form-section">
+                <div class="grid-2">
+                    <div><label>Gerência:</label><input type="text" id="gerencia"></div>
+                    <div><label>Data:<span style="color:red;">*</span></label><input type="date" id="dataRel" onchange="atualizarLetterhead()"></div>
+                </div>
+                <div class="grid-3">
+                    <div><label>Contrato:</label><input type="text" id="contrato"></div>
+                    <div><label>N° OM:</label><input type="text" id="om" oninput="atualizarLetterhead()"></div>
+                    <div><label>Turno:</label><select id="turno"><option>Manhã</option><option>Tarde</option><option>Noite</option></select></div>
+                </div>
+                <div class="grid-3">
+                    <div><label>Fiscal VALE — Gerenciadora:</label><input type="text" id="fiscal"></div>
+                    <div><label>Gestor do Contrato:</label><input type="text" id="gestor"></div>
+                    <div><label>Equipamento:</label><input type="text" id="equip"></div>
+                </div>
+                <div class="grid-3">
+                    <div><label>Balizamento:</label><input type="text" id="baliza"></div>
+                    <div><label>Posição do Trilho:</label><select id="idTrilhoABC"><option>Trilho A</option><option>Trilho B</option><option>Trilho C</option><option>Trilho D</option></select></div>
+                    <div><label>Perfil do Trilho:</label><select id="perfilTrilho"><option>CR-175</option><option>TR-68</option><option>TR-57</option></select></div>
+                </div>
+                <div><label>ID da Tala / Ponto de Junção:</label><input type="text" id="idTala" placeholder="Código interno da tala, se houver"></div>
+            </div>
+        </div>
+
+        <div class="pdf-block">
+            <div class="header-bar">1. Classificação de Criticidade — Tala de Junção</div>
+            <div class="form-section">
+                <div class="config-hint" style="margin-top:0;">Avalie cada item observando a tala na foto/em campo. A classificação final é sempre a do item mais grave marcado — é uma triagem visual assistida, não um laudo de engenharia. <b>Critérios propostos, ainda não validados por um engenheiro da Prumo</b> — use com essa ressalva até a validação formal.</div>
+
+                <div class="checklist-container">
+                    <div class="checklist-row">
+                        <div>Corrosão</div>
+                        <div class="opt opt-normal"><input type="radio" name="critCorrosao" value="Normal" onchange="atualizarClassificacao()"> Sem corrosão significativa</div>
+                        <div class="opt opt-atencao"><input type="radio" name="critCorrosao" value="Atenção" onchange="atualizarClassificacao()"> Superficial moderada</div>
+                        <div class="opt opt-critico"><input type="radio" name="critCorrosao" value="Crítica" onchange="atualizarClassificacao()"> Com perda de seção visível</div>
+                    </div>
+                    <div class="checklist-row">
+                        <div>Parafusos</div>
+                        <div class="opt opt-normal"><input type="radio" name="critParafusos" value="Normal" onchange="atualizarClassificacao()"> Todos presentes e apertados</div>
+                        <div class="opt opt-atencao"><input type="radio" name="critParafusos" value="Atenção" onchange="atualizarClassificacao()"> 1 frouxo ou ausente</div>
+                        <div class="opt opt-critico"><input type="radio" name="critParafusos" value="Crítica" onchange="atualizarClassificacao()"> 2+ ausentes ou quebrados</div>
+                    </div>
+                    <div class="checklist-row">
+                        <div>Folga da Junta</div>
+                        <div class="opt opt-normal"><input type="radio" name="critFolga" value="Normal" onchange="atualizarClassificacao()"> Dentro do padrão</div>
+                        <div class="opt opt-atencao"><input type="radio" name="critFolga" value="Atenção" onchange="atualizarClassificacao()"> Levemente acima do padrão</div>
+                        <div class="opt opt-critico"><input type="radio" name="critFolga" value="Crítica" onchange="atualizarClassificacao()"> Muito acima do padrão</div>
+                    </div>
+                    <div class="checklist-row">
+                        <div>Alinhamento / Degrau entre Trilhos</div>
+                        <div class="opt opt-normal"><input type="radio" name="critAlinhamento" value="Normal" onchange="atualizarClassificacao()"> Sem desalinhamento</div>
+                        <div class="opt opt-atencao"><input type="radio" name="critAlinhamento" value="Atenção" onchange="atualizarClassificacao()"> Pequeno, sem risco imediato</div>
+                        <div class="opt opt-critico"><input type="radio" name="critAlinhamento" value="Crítica" onchange="atualizarClassificacao()"> Degrau/desalinhamento significativo</div>
+                    </div>
+                    <div class="checklist-row">
+                        <div>Trinca na Própria Tala</div>
+                        <div class="opt opt-normal"><input type="radio" name="critTrincaTala" value="Normal" onchange="atualizarClassificacao()"> Não identificada</div>
+                        <div class="opt"></div>
+                        <div class="opt opt-critico"><input type="radio" name="critTrincaTala" value="Crítica" onchange="atualizarClassificacao()"> Trinca visível na tala</div>
+                    </div>
+                </div>
+
+                <div id="statusClassificacao" class="status-box oculto">
+                    <div class="status-titulo" id="statusClassificacaoTitulo"></div>
+                    <div class="status-desc" id="statusClassificacaoDesc"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="avisoTravaClassificacao" class="gps-aviso" style="margin:0 16px 14px;">ℹ️ Classifique os 5 itens acima — a Classificação de Criticidade é conferida antes de gerar o laudo ou a planilha.</div>
+
+        <div class="pdf-block">
+            <div class="header-bar emergencia">2. Detecção de Trincas — Solda Antiga / Corpo do Trilho</div>
+            <div class="form-section">
+                <div class="config-hint" style="margin-top:0;">Trinca confirmada aqui é sempre tratada como <b>emergência</b>, independente da classificação da tala acima.</div>
+                <div class="checklist-container">
+                    <div class="checklist-row" style="grid-template-columns:1.6fr 1fr 1fr;">
+                        <div>Foi identificada trinca em solda antiga ou no corpo do trilho?</div>
+                        <div class="opt opt-normal"><input type="radio" name="trincaDetectada" value="Não" onchange="atualizarTrinca()"> Não</div>
+                        <div class="opt opt-critico"><input type="radio" name="trincaDetectada" value="Sim" onchange="atualizarTrinca()"> Sim</div>
+                    </div>
+                </div>
+
+                <div id="blocoDetalheTrinca" style="display:none; margin-top:14px;">
+                    <div class="grid-2">
+                        <div>
+                            <label>Localização da Trinca:</label>
+                            <select id="trincaLocal"><option value="">Selecione...</option><option value="Na solda antiga">Na solda antiga</option><option value="No corpo do trilho">No corpo do trilho</option><option value="Na solda e no corpo do trilho">Na solda e no corpo do trilho</option></select>
+                        </div>
+                        <div>
+                            <label>Direção da Trinca:</label>
+                            <select id="trincaDirecao"><option value="">Selecione...</option><option value="Transversal">Transversal (mais grave)</option><option value="Longitudinal">Longitudinal</option><option value="Oblíqua">Oblíqua</option></select>
+                        </div>
+                    </div>
+                    <div><label>Comprimento Aproximado (mm):</label><input type="number" id="trincaComprimento" placeholder="Ex: 15"></div>
+                    <div><label>Descrição / Observação da Trinca:</label><textarea id="trincaObs" placeholder="Posição exata, aspecto, contexto de identificação, etc."></textarea></div>
+                </div>
+
+                <div id="bannerEmergencia" class="emergencia-banner">⚠️ EMERGÊNCIA — Trinca detectada. Priorizar abertura de Ordem de Manutenção Emergencial.</div>
+            </div>
+        </div>
+
+        <div class="pdf-block">
+            <div class="header-bar">3. Localização (GPS)</div>
+            <div class="form-section" style="background:#F5F8FB;">
+                <div id="gpsAvisoInseguro" class="gps-aviso" style="display:none;">⚠️ Este arquivo foi aberto sem conexão segura (https://). Por política de segurança do próprio navegador, isso bloqueia a captura automática de GPS neste aparelho. Preencha Latitude/Longitude manualmente abaixo, ou tire as fotos com a localização do celular ativada — se o celular gravar isso na foto, o formulário extrai as coordenadas sozinho.</div>
+                <button type="button" class="btn-main btn-gps" id="btnGps" onclick="capturarLocalizacao(event)">Capturar GPS Agora</button>
+                <div class="gps-meta" id="gpsPrecisao"></div>
+                <a href="#" id="linkMapa" target="_blank" rel="noopener" class="gps-map-link">📍 Ver localização no mapa</a>
+                <div class="grid-2">
+                    <div><label>Latitude:</label><input type="text" id="lat" inputmode="decimal" placeholder="Preencha manualmente se o GPS falhar"></div>
+                    <div><label>Longitude:</label><input type="text" id="long" inputmode="decimal" placeholder="Preencha manualmente se o GPS falhar"></div>
+                </div>
+                <div class="gps-hint">As coordenadas podem ser: capturadas pelo botão acima, reconhecidas automaticamente na foto (metadados EXIF) ou digitadas manualmente. Importante: fotos reenviadas por WhatsApp perdem esses metadados — para o reconhecimento automático funcionar, anexe a foto original tirada pela câmera do celular.</div>
+            </div>
+        </div>
+
+        <div class="pdf-block">
+            <div class="header-bar">4. Registro Fotográfico</div>
+            <div class="form-section" style="background:#F5F8FB;">
+                <div class="grid-2">
+                    <div class="foto-slot"><label>Visão Geral da Junção:</label><input type="file" accept="image/*" onchange="preview(this,'v1')"><img id="v1" class="preview-img" src=""></div>
+                    <div class="foto-slot"><label>Detalhe da Falha (corrosão/folga):</label><input type="file" accept="image/*" onchange="preview(this,'v2')"><img id="v2" class="preview-img" src=""></div>
+                </div>
+                <div class="grid-2" style="margin-top:12px;">
+                    <div class="foto-slot"><label>Parafusos e Talas:</label><input type="file" accept="image/*" onchange="preview(this,'v3')"><img id="v3" class="preview-img" src=""></div>
+                    <div class="foto-slot"><label>Trilho Adjacente / Trinca (se houver):</label><input type="file" accept="image/*" onchange="preview(this,'v4')"><img id="v4" class="preview-img" src=""></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="pdf-block">
+            <div class="header-bar">5. Situação do Ativo</div>
+            <div class="form-section">
+                <div class="grid-2">
+                    <div><label>Situação Atual:</label><select id="situacaoAtivo"><option value="Ativa">Tala em uso (ativa)</option><option value="Substituída por solda">Substituída por solda aluminotérmica</option></select></div>
+                    <div><label>Referência da Solda Substituta (N° do Relatório de Solda, se houver):</label><input type="text" id="refSolda" placeholder="Ex: RDO 0032"></div>
+                </div>
+                <div class="config-hint">Quando esta tala for substituída por uma solda mapeada, registre aqui o número do relatório de solda correspondente — é o vínculo manual entre os dois sistemas até que a integração automática exista.</div>
+            </div>
+        </div>
+
+        <div class="pdf-block">
+            <div class="header-bar">6. Validação e Responsáveis</div>
+            <div class="form-section">
+                <div class="grid-2">
+                    <div><label>Inspetor:<span style="color:red;">*</span></label>
+                        <input type="text" id="inspetor" required list="listaInspetores" placeholder="Digite o nome do inspetor" autocomplete="off">
+                        <datalist id="listaInspetores"></datalist>
+                    </div>
+                    <div><label>Matrícula do Inspetor:<span style="color:red;">*</span></label><input type="text" id="matInspetor" required placeholder="Ex: 12345"></div>
+                </div>
+                <div class="grid-2">
+                    <div><label>Função do Responsável Prumo:<span style="color:red;">*</span></label>
+                        <select id="tipoCargo" required onchange="atualizarAssinCargo()"><option value="">Selecione...</option><option value="Encarregado">Encarregado</option><option value="Feitor">Feitor</option></select>
+                    </div>
+                    <div><label>Nome do Responsável:<span style="color:red;">*</span></label>
+                        <input type="text" id="assinCargo" required list="listaResponsaveis" placeholder="Digite o nome do responsável" autocomplete="off">
+                        <datalist id="listaResponsaveis"></datalist>
+                    </div>
+                </div>
+                <div><label>Matrícula Responsável:<span style="color:red;">*</span></label><input type="text" id="matResponsavel" required placeholder="Ex: 54321"></div>
+                <div><label>Observações Gerais:</label><textarea id="obsGerais" placeholder="Ocorrências, ressalvas, condições de acesso, etc."></textarea></div>
+
+                <div class="assinatura-box">
+                    <label class="assinatura-linha">
+                        <input type="checkbox" id="declaracao" required>
+                        <span>Declaro que as informações registradas neste relatório são verdadeiras e refletem a inspeção realizada em campo na data informada.<span style="color:red;">*</span></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="pasta-panel">
+        <div class="rotulo">Onde salvar os arquivos</div>
+        <button type="button" class="btn-main btn-pasta" id="btnPasta" onclick="escolherPasta()">📁 Escolher Pasta de Trabalho (salvar automático)</button>
+        <div class="gps-meta" id="pastaStatus">Nenhuma pasta selecionada — os PDFs vão para a pasta padrão de Downloads do aparelho.</div>
+        <button type="button" class="btn-main btn-log" onclick="baixarPlanilhaGeral()">📒 Baixar Planilha Geral desta Sessão</button>
+        <div class="config-hint">No computador (Chrome ou Edge), "Escolher Pasta de Trabalho" faz o PDF, as fotos e um arquivo <b>Registro_Geral_Talas.csv</b> caírem sempre na mesma pasta, com uma linha nova por relatório — e é essa pasta que também mantém a numeração sequencial dos relatórios (N° 0001, 0002...) certa entre um dia e outro. <b>Recomendação:</b> use a mesma pasta de trabalho já escolhida no Relatório de Solda — os dois arquivos CSV (talas e solda) ficam lado a lado na mesma pasta, sem se misturar, prontos para o Power BI ler os dois. Esse recurso ainda não existe no iPhone/Safari — nesses aparelhos, a numeração só conta os relatórios gerados na sessão atual, e use o botão "Baixar Planilha Geral" para exportar o resumo de tudo que foi gerado.</div>
+    </div>
+
+    <div class="actions">
+        <button class="btn-main btn-pdf" id="btnPdf" onclick="gerarPDF()">Gerar Laudo em PDF</button>
+        <button class="btn-main btn-excel" onclick="baixarPlanilha()">Baixar Planilha Excel (deste Laudo)</button>
+    </div>
+
+    <div class="rodape-app">Inspeção de Talas de Junção · Prumo Engenharia — uso interno de campo</div>
+</div>
+
+<script>
+/* Rede de segurança: se algo quebrar (erro de script, promessa rejeitada), mostra
+   um alerta com a mensagem exata em vez de o botão "simplesmente não fazer nada".
+   Isso é essencial para diagnosticar problemas remotamente em celulares de campo. */
+window.addEventListener('error', function (ev) {
+    console.error('Erro não tratado:', ev.error || ev.message);
+    alert('⚠️ Ocorreu um erro inesperado no formulário:\n\n' + (ev.message || 'erro desconhecido') +
+        (ev.filename ? '\n(linha ' + ev.lineno + ')' : '') +
+        '\n\nTire um print desta mensagem e envie para o suporte.');
+});
+window.addEventListener('unhandledrejection', function (ev) {
+    console.error('Promessa rejeitada sem tratamento:', ev.reason);
+    alert('⚠️ Ocorreu um erro inesperado ao processar uma ação:\n\n' + (ev.reason && ev.reason.message ? ev.reason.message : ev.reason) +
+        '\n\nTire um print desta mensagem e envie para o suporte.');
+});
+
+let pastaHandle = null;
+let pastaHandlePendente = null;
+let registroSessao = [];
+
+/* ===================== MEMÓRIA DA PASTA ESCOLHIDA (entre sessões) ===================== */
+const DB_NOME = 'prumo_pasta_trabalho';
+const DB_STORE = 'handles';
+const DB_CHAVE_PASTA = 'pastaTrabalho';
+
+function abrirDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NOME, 1);
+        req.onupgradeneeded = () => { req.result.createObjectStore(DB_STORE); };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function salvarHandlePasta(handle) {
+    try {
+        const db = await abrirDB();
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction(DB_STORE, 'readwrite');
+            tx.objectStore(DB_STORE).put(handle, DB_CHAVE_PASTA);
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) { console.log('Não foi possível lembrar esta pasta para a próxima vez', e); }
+}
+
+async function carregarHandlePastaSalva() {
+    try {
+        const db = await abrirDB();
+        return await new Promise((resolve, reject) => {
+            const tx = db.transaction(DB_STORE, 'readonly');
+            const req = tx.objectStore(DB_STORE).get(DB_CHAVE_PASTA);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+        });
+    } catch (e) { return null; }
+}
+
+function atualizarStatusPasta() {
+    document.getElementById('pastaStatus').innerText = `📁 Salvando automaticamente em "${pastaHandle.name}" (PDF, fotos e Registro_Geral_Talas.csv)`;
+    document.getElementById('btnPasta').innerText = '📁 Trocar Pasta de Trabalho';
+}
+
+async function reconectarPasta() {
+    if (!pastaHandlePendente) return;
+    try {
+        const permissao = await pastaHandlePendente.requestPermission({ mode: 'readwrite' });
+        if (permissao === 'granted') {
+            pastaHandle = pastaHandlePendente;
+            atualizarStatusPasta();
+        } else {
+            alert('Permissão não concedida para a pasta salva. Escolha a pasta novamente.');
+        }
+    } catch (e) {
+        alert('Não foi possível reconectar à pasta salva (ela pode ter sido movida ou apagada). Escolha novamente.');
+    }
+}
+
+async function tentarReconectarPastaSalva() {
+    const handleSalvo = await carregarHandlePastaSalva();
+    if (!handleSalvo) return;
+    try {
+        const permissao = await handleSalvo.queryPermission({ mode: 'readwrite' });
+        if (permissao === 'granted') {
+            pastaHandle = handleSalvo;
+            atualizarStatusPasta();
+        } else {
+            pastaHandlePendente = handleSalvo;
+            document.getElementById('pastaStatus').innerHTML = `📁 Pasta salva: "${handleSalvo.name}" — <button type="button" class="link-inline" onclick="reconectarPasta()">🔓 Reconectar</button>`;
+        }
+    } catch (e) {
+        console.log('Referência de pasta salva não é mais válida', e);
+    }
+}
+
+function atualizarAssinCargo() {
+    const cargo = document.getElementById('tipoCargo').value;
+    const datalist = document.getElementById('listaResponsaveis');
+    datalist.innerHTML = '';
+    const sugestoes = (cargo === "Encarregado") ? ["Genilson Cutrim"] : ["José Ribamar", "Marlon Rabelo"];
+    sugestoes.forEach(nome => {
+        const opt = document.createElement('option');
+        opt.value = nome;
+        datalist.appendChild(opt);
+    });
+}
+window.onload = () => {
+    atualizarAssinCargo();
+    const hoje = new Date();
+    document.getElementById('dataRel').value = hoje.toISOString().slice(0,10);
+    atualizarLetterhead();
+    if (!window.isSecureContext) {
+        document.getElementById('gpsAvisoInseguro').style.display = 'block';
+    }
+    tentarReconectarPastaSalva();
+    verificarBibliotecas();
+    atualizarBloqueioFormulario();
+};
+
+function verificarBibliotecas() {
+    const faltando = [];
+    if (typeof window.jspdf === 'undefined') faltando.push('geração de PDF (jsPDF)');
+    if (typeof window.html2canvas === 'undefined') faltando.push('captura das páginas (html2canvas)');
+    if (typeof window.piexif === 'undefined') faltando.push('leitura de GPS da foto (piexifjs)');
+    if (typeof window.JSZip === 'undefined') faltando.push('empacotamento em ZIP (JSZip)');
+    if (faltando.length > 0) {
+        const el = document.getElementById('avisoBibliotecas');
+        el.style.display = 'block';
+        el.innerHTML = `⚠️ Algumas funções deste formulário não carregaram corretamente: <b>${faltando.join(', ')}</b>. Isso normalmente acontece quando a rede/Wi-Fi bloqueia o carregamento de scripts externos (cdnjs.cloudflare.com). As fotos ainda podem ser anexadas normalmente, mas gerar o PDF pode falhar. Tente em outra rede (dados móveis, por exemplo) ou peça para o TI liberar esse endereço.`;
+    }
+}
+
+function atualizarLetterhead() {
+    const om = document.getElementById('om').value || 'S/N';
+    const data = document.getElementById('dataRel').value;
+    document.getElementById('lhCodigo').innerText = `INSP-TALA-${om}`;
+    if (data) {
+        const [ano, mes, dia] = data.split('-');
+        document.getElementById('lhData').innerText = `${dia}/${mes}/${ano}`;
+    }
+}
+
+function preview(input, id) {
+    if (input.files && input.files[0]) {
+        const arquivo = input.files[0];
+        const reader = new FileReader();
+        reader.onload = e => {
+            document.getElementById(id).src = e.target.result;
+            try {
+                extrairGPSdaFoto(e.target.result);
+            } catch (err) {
+                console.log('Falha ao ler metadados da foto (a foto foi anexada normalmente):', err);
+            }
+        };
+        reader.onerror = () => {
+            alert('⚠️ Não foi possível carregar esta foto. Tente novamente ou escolha outra imagem.');
+        };
+        reader.readAsDataURL(arquivo);
+    }
+}
+
+function extrairGPSdaFoto(dataUrl) {
+    const statusEl = document.getElementById('gpsPrecisao');
+    try {
+        const exifData = piexif.load(dataUrl);
+        const gps = exifData.GPS;
+        if (!gps || !gps[piexif.GPSIFD.GPSLatitude] || !gps[piexif.GPSIFD.GPSLongitude]) {
+            console.log("Foto não contém dados de GPS nos metadados.");
+            if (statusEl && !document.getElementById('lat').value) {
+                statusEl.innerText = "Esta foto não tem localização gravada (comum em fotos reenviadas por WhatsApp, que apagam esses dados — use a foto original da câmera).";
+            }
+            return;
+        }
+        const lat = converterGPS(gps[piexif.GPSIFD.GPSLatitude], gps[piexif.GPSIFD.GPSLatitudeRef]);
+        const lon = converterGPS(gps[piexif.GPSIFD.GPSLongitude], gps[piexif.GPSIFD.GPSLongitudeRef]);
+        if (lat !== null && lon !== null) {
+            document.getElementById('lat').value = lat.toFixed(6);
+            document.getElementById('long').value = lon.toFixed(6);
+            if (statusEl) statusEl.innerText = "📍 Latitude/Longitude reconhecidas automaticamente pela foto adicionada.";
+            const linkMapa = document.getElementById('linkMapa');
+            linkMapa.href = `https://www.google.com/maps?q=${lat},${lon}`;
+            linkMapa.style.display = 'inline-block';
+        }
+    } catch (error) {
+        console.log("Erro ao ler metadados EXIF da foto:", error);
+        if (statusEl && !document.getElementById('lat').value) {
+            statusEl.innerText = "Não foi possível ler os metadados desta foto (formato sem EXIF, ex: PNG, ou dados corrompidos).";
+        }
+    }
+}
+
+function converterGPS(coord, ref) {
+    try {
+        const graus = coord[0][0] / coord[0][1];
+        const minutos = coord[1][0] / coord[1][1] / 60;
+        const segundos = coord[2][0] / coord[2][1] / 3600;
+        let decimal = graus + minutos + segundos;
+        if (ref === "S" || ref === "W") decimal = decimal * -1;
+        return decimal;
+    } catch (e) {
+        return null;
+    }
+}
+
+/* ===================== CLASSIFICAÇÃO DE CRITICIDADE ===================== */
+const CRITERIOS_TALA = ['critCorrosao', 'critParafusos', 'critFolga', 'critAlinhamento', 'critTrincaTala'];
+
+function valorRadio(nome) {
+    const el = document.querySelector(`input[name="${nome}"]:checked`);
+    return el ? el.value : '';
+}
+
+function todosCriteriosPreenchidos() {
+    return CRITERIOS_TALA.every(nome => valorRadio(nome) !== '');
+}
+
+function atualizarBloqueioFormulario() {
+    // Nenhuma seção é travada por aqui: fotos, GPS, trincas, situação do ativo e
+    // responsáveis ficam livres para preenchimento a qualquer momento (inclusive
+    // antes da classificação, já que classificar depende de olhar a foto/o campo).
+    // A Classificação de Criticidade completa continua sendo exigida, mas só na
+    // hora de gerar o laudo/planilha — ver validarCamposObrigatorios().
+    const completo = todosCriteriosPreenchidos();
+    const aviso = document.getElementById('avisoTravaClassificacao');
+    if (aviso) aviso.style.display = completo ? 'none' : 'block';
+}
+
+function calcularCriticidadeTala() {
+    const valores = CRITERIOS_TALA.map(valorRadio);
+    if (valores.includes('Crítica')) return 'Crítica';
+    if (valores.includes('Atenção')) return 'Atenção';
+    if (valores.every(v => v === 'Normal')) return 'Normal';
+    return ''; // ainda incompleto
+}
+
+function atualizarClassificacao() {
+    atualizarBloqueioFormulario();
+    const criticidade = calcularCriticidadeTala();
+    const caixa = document.getElementById('statusClassificacao');
+    const titulo = document.getElementById('statusClassificacaoTitulo');
+    const desc = document.getElementById('statusClassificacaoDesc');
+
+    if (!criticidade) { caixa.classList.add('oculto'); return; }
+    caixa.classList.remove('oculto');
+
+    if (criticidade === 'Crítica') {
+        caixa.style.background = 'var(--critico-bg)'; caixa.style.color = 'var(--critico-fg)'; caixa.style.borderColor = 'var(--critico-borda)';
+        titulo.innerText = '🔴 CRÍTICA';
+        desc.innerText = 'Manutenção Emergencial — priorizar abertura de Ordem de Manutenção.';
+    } else if (criticidade === 'Atenção') {
+        caixa.style.background = 'var(--atencao-bg)'; caixa.style.color = 'var(--atencao-fg)'; caixa.style.borderColor = 'var(--atencao-borda)';
+        titulo.innerText = '🟡 ATENÇÃO';
+        desc.innerText = 'Manutenção Planejada — programar intervenção nos próximos ciclos.';
+    } else {
+        caixa.style.background = 'var(--normal-bg)'; caixa.style.color = 'var(--normal-fg)'; caixa.style.borderColor = 'var(--normal-borda)';
+        titulo.innerText = '🟢 NORMAL';
+        desc.innerText = 'Sem ação imediata — manter no ciclo regular de inspeção.';
+    }
+}
+
+function atualizarTrinca() {
+    const detectada = valorRadio('trincaDetectada') === 'Sim';
+    document.getElementById('blocoDetalheTrinca').style.display = detectada ? 'block' : 'none';
+    document.getElementById('bannerEmergencia').classList.toggle('ativo', detectada);
+}
+
+function calcularTipoOrdem() {
+    if (valorRadio('trincaDetectada') === 'Sim') return 'Emergencial (Trinca)';
+    const criticidade = calcularCriticidadeTala();
+    if (criticidade === 'Crítica') return 'Emergencial';
+    if (criticidade === 'Atenção') return 'Planejada';
+    if (criticidade === 'Normal') return 'Sem ação';
+    return '';
+}
+
+/* ===================== GEOLOCALIZAÇÃO ===================== */
+async function capturarLocalizacao(ev) {
+    const btn = (ev && (ev.currentTarget || ev.target)) || document.getElementById('btnGps');
+    const textoOriginal = btn.innerText;
+
+    if (!window.isSecureContext) {
+        alert("⚠️ A geolocalização só funciona em conexão segura (https://).\n\nSe você abriu este arquivo direto do celular (file://), o GPS fica bloqueado pelo navegador. Hospede este formulário em um link https:// (servidor interno, SharePoint, etc.) para o GPS funcionar em campo.\n\nEnquanto isso, as coordenadas também podem ser extraídas automaticamente das fotos, se o celular gravar localização nos metadados.");
+        return;
+    }
+    if (!navigator.geolocation) {
+        alert("⚠️ Este navegador não suporta geolocalização.");
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerText = "Aguardando GPS...";
+
+    const tentarCaptura = (opcoes) => new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, opcoes);
+    });
+
+    try {
+        let pos;
+        try {
+            pos = await tentarCaptura({ enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+        } catch (erroPrimeiraTentativa) {
+            btn.innerText = "Tentando sinal aproximado...";
+            pos = await tentarCaptura({ enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 });
+        }
+
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const precisao = Math.round(pos.coords.accuracy || 0);
+        const hora = new Date(pos.timestamp).toLocaleTimeString('pt-BR');
+
+        document.getElementById('lat').value = lat.toFixed(6);
+        document.getElementById('long').value = lon.toFixed(6);
+        document.getElementById('gpsPrecisao').innerText = `Precisão: ±${precisao} m · capturado às ${hora}`;
+
+        const linkMapa = document.getElementById('linkMapa');
+        linkMapa.href = `https://www.google.com/maps?q=${lat},${lon}`;
+        linkMapa.style.display = 'inline-block';
+
+        btn.innerText = "GPS Capturado ✓";
+        setTimeout(() => { btn.innerText = "Capturar GPS Novamente"; btn.disabled = false; }, 1800);
+    } catch (erro) {
+        let mensagem = "Erro ao capturar GPS: ";
+        switch (erro.code) {
+            case erro.PERMISSION_DENIED:
+                mensagem += "Permissão negada. Vá em Configurações > Localização (do celular e do navegador) e permita o acesso para este site.";
+                break;
+            case erro.POSITION_UNAVAILABLE:
+                mensagem += "Posição indisponível. Tente em local aberto, longe de estruturas metálicas, com melhor sinal.";
+                break;
+            case erro.TIMEOUT:
+                mensagem += "Tempo expirado. Verifique se a localização do celular está ativada e tente novamente.";
+                break;
+            default:
+                mensagem += "Erro desconhecido. Verifique se a localização está ativada no celular.";
+        }
+        alert("⚠️ " + mensagem);
+        btn.disabled = false;
+        btn.innerText = "Tentar Novamente";
+    }
+}
+
+function validarCamposObrigatorios() {
+    const camposObrigatorios = [
+        { id: 'dataRel', nome: 'Data' },
+        { id: 'inspetor', nome: 'Inspetor' },
+        { id: 'matInspetor', nome: 'Matrícula do Inspetor' },
+        { id: 'tipoCargo', nome: 'Função do Responsável Prumo' },
+        { id: 'assinCargo', nome: 'Nome do Responsável' },
+        { id: 'matResponsavel', nome: 'Matrícula Responsável' }
+    ];
+
+    let erros = [];
+    for (let campo of camposObrigatorios) {
+        const elemento = document.getElementById(campo.id);
+        if (!elemento || !elemento.value || elemento.value === '') erros.push(campo.nome);
+    }
+
+    if (!todosCriteriosPreenchidos()) {
+        erros.push('Classificação de Criticidade da Tala (todos os 5 itens)');
+    }
+    if (!valorRadio('trincaDetectada')) {
+        erros.push('Detecção de Trincas — Solda Antiga/Corpo do Trilho (Sim ou Não)');
+    }
+    if (valorRadio('trincaDetectada') === 'Sim') {
+        if (!document.getElementById('trincaLocal').value) erros.push('Localização da Trinca');
+        if (!document.getElementById('trincaDirecao').value) erros.push('Direção da Trinca');
+        if (!document.getElementById('trincaComprimento').value) erros.push('Comprimento Aproximado da Trinca');
+    }
+    if (!document.getElementById('declaracao').checked) {
+        erros.push('Declaração de veracidade (marque a caixa de confirmação)');
+    }
+    if (erros.length > 0) {
+        alert("⚠️ Preencha os campos obrigatórios:\n\n• " + erros.join("\n• "));
+        return false;
+    }
+    return true;
+}
+
+function montarDadosLinha(nomeBase, numeroSequencial, agora) {
+    const dataV = document.getElementById('dataRel').value;
+    let dataRelFormatada = '';
+    if (dataV) {
+        const [ano, mes, dia] = dataV.split('-');
+        dataRelFormatada = `${dia}/${mes}/${ano}`;
+    }
+    const trincaDetectada = valorRadio('trincaDetectada');
+    return {
+        "ID": numeroSequencial,
+        "Gerência": document.getElementById('gerencia').value,
+        "Data": dataRelFormatada,
+        "Nº OM": document.getElementById('om').value,
+        "Contrato": document.getElementById('contrato').value,
+        "Turno": document.getElementById('turno').value,
+        "Fiscal Vale - Gerenciadora": document.getElementById('fiscal').value,
+        "Gestor do Contrato": document.getElementById('gestor').value,
+        "Equipamento": document.getElementById('equip').value,
+        "Balizamento": document.getElementById('baliza').value,
+        "Posição Trilho": document.getElementById('idTrilhoABC').value,
+        "Perfil Trilho": document.getElementById('perfilTrilho').value,
+        "ID_Tala": document.getElementById('idTala').value,
+        "Corrosao": valorRadio('critCorrosao'),
+        "Parafusos": valorRadio('critParafusos'),
+        "Folga": valorRadio('critFolga'),
+        "Alinhamento": valorRadio('critAlinhamento'),
+        "Trinca_Tala": valorRadio('critTrincaTala'),
+        "Criticidade_Tala": calcularCriticidadeTala(),
+        "Trinca_Solda_Trilho": trincaDetectada,
+        "Localizacao_Trinca": trincaDetectada === 'Sim' ? document.getElementById('trincaLocal').value : '',
+        "Direcao_Trinca": trincaDetectada === 'Sim' ? document.getElementById('trincaDirecao').value : '',
+        "Comprimento_Trinca_mm": trincaDetectada === 'Sim' ? document.getElementById('trincaComprimento').value : '',
+        "Obs_Trinca": trincaDetectada === 'Sim' ? (document.getElementById('trincaObs').value || '').replace(/;/g, ',').replace(/\n/g, ' ') : '',
+        "Tipo_Ordem_Manutencao": calcularTipoOrdem(),
+        "Latitude": document.getElementById('lat').value,
+        "Longitude": document.getElementById('long').value,
+        "Foto Visao Geral": document.getElementById('v1').src ? `${nomeBase}_VisaoGeral.jpg` : '',
+        "Foto Detalhe Falha": document.getElementById('v2').src ? `${nomeBase}_DetalheFalha.jpg` : '',
+        "Foto Parafusos": document.getElementById('v3').src ? `${nomeBase}_Parafusos.jpg` : '',
+        "Foto Trilho Adjacente": document.getElementById('v4').src ? `${nomeBase}_TrilhoAdjacente.jpg` : '',
+        "Situacao_Ativo": document.getElementById('situacaoAtivo').value,
+        "Referencia_Solda_Substituta": document.getElementById('refSolda').value,
+        "Inspetor": document.getElementById('inspetor').value,
+        "Matricula_Inspetor": document.getElementById('matInspetor').value,
+        "Responsavel Prumo": document.getElementById('assinCargo').value,
+        "Função": (document.getElementById('tipoCargo').value || '').toUpperCase(),
+        "Matricula_Responsavel": document.getElementById('matResponsavel').value,
+        "Observacoes": (document.getElementById('obsGerais').value || '').replace(/;/g, ',').replace(/\n/g, ' '),
+        "DataHora_Geracao": agora,
+        "Arquivo_PDF": `${nomeBase}.pdf`
+    };
+}
+
+function gerarNomeBase(numeroFormatado) {
+    const om = document.getElementById('om').value || 'S_N';
+    const trilho = document.getElementById('idTrilhoABC').value || 'TRILHO';
+    const baliza = document.getElementById('baliza').value || 'S_BAL';
+    const idTala = document.getElementById('idTala').value || 'TALA';
+    const limpar = s => s.toString().trim().replace(/\s+/g, '_');
+    return `INSP_${numeroFormatado}_OM_${limpar(om)}_TRILHO_${limpar(trilho)}_BALIZ_${limpar(baliza)}_TALA_${limpar(idTala)}`;
+}
+
+/* Descobre o próximo número sequencial do relatório.
+   Com pasta de trabalho escolhida: conta as linhas já existentes em Registro_Geral_Talas.csv (persiste de verdade, entre sessões).
+   Sem pasta escolhida: usa a contagem desta sessão do navegador apenas (reinicia se a página for fechada). */
+async function obterProximoNumero() {
+    if (pastaHandle) {
+        try {
+            const fileHandle = await pastaHandle.getFileHandle('Registro_Geral_Talas.csv', { create: false });
+            const file = await fileHandle.getFile();
+            const texto = await file.text();
+            const linhas = texto.split('\n').filter(l => l.trim() !== '');
+            const numDados = Math.max(linhas.length - 1, 0); // primeira linha é cabeçalho
+            return numDados + 1;
+        } catch (e) {
+            return 1; // Registro_Geral_Talas.csv ainda não existe nesta pasta: é o primeiro relatório
+        }
+    }
+    return registroSessao.length + 1;
+}
+
+/* ===================== GERAÇÃO DE PDF (por blocos, sem cortar conteúdo) ===================== */
+async function gerarPDF() {
+    if (!validarCamposObrigatorios()) return;
+
+    const btn = document.getElementById('btnPdf');
+    const textoOriginal = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = "Gerando PDF...";
+    document.body.classList.add('rendering-pdf');
+
+    try {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const margin = 8;
+        const usableW = pageW - margin * 2;
+        const footerH = 8;
+
+        const numeroSequencial = await obterProximoNumero();
+        const numeroFormatado = String(numeroSequencial).padStart(4, '0');
+        document.getElementById('lhNumero').innerText = numeroFormatado;
+
+        const nomeBase = gerarNomeBase(numeroFormatado);
+        const agora = new Date().toLocaleString('pt-BR');
+
+        const opcoesCaptura = { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false };
+
+        // Captura o cabeçalho (letterhead) separadamente — aparece só na 1ª página
+        const letterheadEl = document.getElementById('letterhead');
+        const chLetterhead = await html2canvas(letterheadEl, opcoesCaptura);
+        const hLetterhead = (chLetterhead.height * usableW) / chLetterhead.width;
+
+        // Captura cada bloco de conteúdo individualmente para que nenhum seja cortado no meio
+        const blocos = Array.from(document.querySelectorAll('.pdf-block'));
+        const capturas = [];
+        for (const bloco of blocos) {
+            const c = await html2canvas(bloco, opcoesCaptura);
+            capturas.push({ h: (c.height * usableW) / c.width, dataUrl: c.toDataURL('image/jpeg', 0.95) });
+        }
+
+        let paginaAtual = 1;
+        let y = margin;
+        pdf.addImage(chLetterhead.toDataURL('image/jpeg', 0.95), 'JPEG', margin, y, usableW, hLetterhead);
+        y += hLetterhead + 4;
+
+        capturas.forEach(({ h, dataUrl }) => {
+            const espacoDisponivel = pageH - margin - footerH - y;
+            if (h > espacoDisponivel && y > margin) {
+                desenharRodape(pdf, nomeBase, agora);
+                pdf.addPage();
+                paginaAtual++;
+                y = margin;
+            }
+            pdf.addImage(dataUrl, 'JPEG', margin, y, usableW, h);
+            y += h + 4;
+        });
+        desenharRodape(pdf, nomeBase, agora);
+
+        const totalPaginas = paginaAtual;
+        for (let i = 1; i <= totalPaginas; i++) {
+            pdf.setPage(i);
+            pdf.setFontSize(7.5);
+            pdf.setTextColor(120);
+            pdf.text(`Página ${i} de ${totalPaginas}`, pageW - margin, pageH - 3, { align: 'right' });
+        }
+
+        const dadosLinha = montarDadosLinha(nomeBase, numeroSequencial, agora);
+
+        if (pastaHandle) {
+            const pdfBlob = pdf.output('blob');
+            const okPdf = await salvarArquivoNaPasta(`${nomeBase}.pdf`, pdfBlob);
+
+            const fotos = [['v1','VisaoGeral'],['v2','DetalheFalha'],['v3','Parafusos'],['v4','TrilhoAdjacente']];
+            for (const [id, nomeFoto] of fotos) {
+                const src = document.getElementById(id).src;
+                if (src && src.startsWith('data:')) {
+                    try {
+                        const res = await fetch(src);
+                        const blob = await res.blob();
+                        await salvarArquivoNaPasta(`${nomeBase}_${nomeFoto}.jpg`, blob);
+                    } catch (e) { console.log('Falha ao salvar foto', id, e); }
+                }
+            }
+
+            const okPlanilha = await registrarNaPlanilha(dadosLinha);
+
+            if (okPdf) {
+                alert(`✅ Laudo e fotos salvos em "${pastaHandle.name}"` + (okPlanilha ? ` e registrados em Registro_Geral_Talas.csv.` : `. (Não foi possível atualizar a planilha automaticamente — use "Baixar Planilha Geral".)`));
+            } else {
+                alert("⚠️ Não foi possível salvar direto na pasta (permissão perdida?). Baixando normalmente...");
+                await empacotarEBaixar(pdf, nomeBase);
+            }
+        } else {
+            await registrarNaPlanilha(dadosLinha);
+            await empacotarEBaixar(pdf, nomeBase);
+        }
+    } catch (erro) {
+        console.error(erro);
+        alert("⚠️ Erro ao gerar o PDF: " + erro.message);
+    } finally {
+        document.body.classList.remove('rendering-pdf');
+        btn.disabled = false;
+        btn.innerText = textoOriginal;
+    }
+}
+
+function desenharRodape(pdf, nomeBase, agora) {
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    pdf.setDrawColor(225);
+    pdf.line(8, pageH - 9, pageW - 8, pageH - 9);
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(120);
+    pdf.text(`${nomeBase} · Gerado em ${agora}`, 8, pageH - 3);
+}
+
+/* ===================== PASTA DE TRABALHO E PLANILHA GERAL ===================== */
+const COLUNAS_REGISTRO = [
+    "ID","Gerência","Data","Nº OM","Contrato","Turno","Fiscal Vale - Gerenciadora","Gestor do Contrato","Equipamento",
+    "Balizamento","Posição Trilho","Perfil Trilho","ID_Tala",
+    "Corrosao","Parafusos","Folga","Alinhamento","Trinca_Tala","Criticidade_Tala",
+    "Trinca_Solda_Trilho","Localizacao_Trinca","Direcao_Trinca","Comprimento_Trinca_mm","Obs_Trinca",
+    "Tipo_Ordem_Manutencao",
+    "Latitude","Longitude","Foto Visao Geral","Foto Detalhe Falha","Foto Parafusos","Foto Trilho Adjacente",
+    "Situacao_Ativo","Referencia_Solda_Substituta",
+    "Inspetor","Matricula_Inspetor","Responsavel Prumo","Função","Matricula_Responsavel",
+    "Observacoes","DataHora_Geracao","Arquivo_PDF"
+];
+
+async function escolherPasta() {
+    if (!('showDirectoryPicker' in window)) {
+        alert("Este navegador não permite escolher uma pasta fixa para salvar automaticamente (hoje isso funciona no Chrome ou Edge de computador). Os arquivos vão continuar sendo baixados normalmente — use o botão \"Baixar Planilha Geral\" para ter o registro de tudo que foi gerado nesta sessão.");
+        return;
+    }
+    try {
+        pastaHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        await salvarHandlePasta(pastaHandle);
+        atualizarStatusPasta();
+    } catch (e) {
+        console.log('Seleção de pasta cancelada ou negada', e);
+    }
+}
+
+async function salvarArquivoNaPasta(nomeArquivo, blob) {
+    if (!pastaHandle) return false;
+    try {
+        const fh = await pastaHandle.getFileHandle(nomeArquivo, { create: true });
+        const writable = await fh.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return true;
+    } catch (e) {
+        console.error('Erro ao salvar arquivo na pasta', e);
+        return false;
+    }
+}
+
+async function registrarNaPlanilha(dadosLinha) {
+    registroSessao.push(dadosLinha);
+    if (!pastaHandle) return false;
+    try {
+        const nomeArquivo = 'Registro_Geral_Talas.csv';
+        let fileHandle, conteudoExistente = '';
+        try {
+            fileHandle = await pastaHandle.getFileHandle(nomeArquivo, { create: false });
+            const file = await fileHandle.getFile();
+            conteudoExistente = await file.text();
+        } catch (e) {
+            fileHandle = await pastaHandle.getFileHandle(nomeArquivo, { create: true });
+        }
+        const linhaCsv = COLUNAS_REGISTRO.map(c => (dadosLinha[c] || '').toString().replace(/;/g, ',')).join(";") + "\n";
+        const novoConteudo = (conteudoExistente && conteudoExistente.trim())
+            ? conteudoExistente + linhaCsv
+            : "﻿" + COLUNAS_REGISTRO.join(";") + "\n" + linhaCsv;
+        const writable = await fileHandle.createWritable();
+        await writable.write(novoConteudo);
+        await writable.close();
+        return true;
+    } catch (e) {
+        console.error('Erro ao atualizar planilha na pasta', e);
+        return false;
+    }
+}
+
+function baixarPlanilhaGeral() {
+    if (registroSessao.length === 0) {
+        alert('Nenhum laudo foi gerado nesta sessão ainda.');
+        return;
+    }
+    let csv = "﻿" + COLUNAS_REGISTRO.join(";") + "\n";
+    registroSessao.forEach(linha => {
+        csv += COLUNAS_REGISTRO.map(c => (linha[c] || '').toString().replace(/;/g, ',')).join(";") + "\n";
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Registro_Geral_Talas_Sessao.csv`;
+    link.click();
+}
+
+async function empacotarEBaixar(pdf, nomeBase) {
+    const zip = new JSZip();
+    zip.file(`${nomeBase}.pdf`, pdf.output('blob'));
+
+    const fotos = [
+        { id: 'v1', nome: 'VisaoGeral' },
+        { id: 'v2', nome: 'DetalheFalha' },
+        { id: 'v3', nome: 'Parafusos' },
+        { id: 'v4', nome: 'TrilhoAdjacente' }
+    ];
+
+    for (const foto of fotos) {
+        const src = document.getElementById(foto.id).src;
+        if (src && src.startsWith('data:')) {
+            try {
+                const res = await fetch(src);
+                const blob = await res.blob();
+                zip.file(`${nomeBase}_${foto.nome}.jpg`, blob);
+            } catch (e) {
+                console.log('Não foi possível anexar a foto', foto.id, e);
+            }
+        }
+    }
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${nomeBase}.zip`;
+    link.click();
+    alert("✅ Laudo, fotos e documentos baixados com sucesso!");
+}
+
+async function baixarPlanilha() {
+    if (!validarCamposObrigatorios()) return;
+
+    const numeroSequencial = await obterProximoNumero();
+    const numeroFormatado = String(numeroSequencial).padStart(4, '0');
+    const nomeBase = gerarNomeBase(numeroFormatado);
+    const agora = new Date().toLocaleString('pt-BR');
+    const dadosLinha = montarDadosLinha(nomeBase, numeroSequencial, agora);
+
+    let csv = "﻿" + COLUNAS_REGISTRO.join(";") + "\n";
+    csv += COLUNAS_REGISTRO.map(c => (dadosLinha[c] || '').toString().replace(/;/g, ',')).join(";") + "\n";
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Laudo_Tala_OM_${document.getElementById('om').value || 'S_N'}_${document.getElementById('idTrilhoABC').value}_${document.getElementById('baliza').value || 'S_BAL'}.csv`;
+    link.click();
+}
+</script>
+</body>
+</html>

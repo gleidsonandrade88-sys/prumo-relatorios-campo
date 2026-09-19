@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Relatórios · Prumo Engenharia</title>
+<style>
+    :root{
+        --laranja: #F26522;
+        --laranja-escuro: #C64F14;
+        --marrom: #413E3D;
+        --marrom-claro: #6B6564;
+        --fundo-app: #ECEDEF;
+        --papel: #FFFFFF;
+        --texto: #2B2929;
+        --texto-suave: #6B6564;
+    }
+    *{box-sizing:border-box;}
+    body{
+        font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+        background: linear-gradient(180deg, var(--marrom) 0px, var(--marrom) 64px, var(--fundo-app) 64px);
+        margin:0; padding:20px 12px 60px; color:var(--texto);
+        min-height:100vh;
+    }
+    .top-nav{
+        max-width:640px; margin:-20px auto 34px; padding:0 4px;
+        display:flex; align-items:center; gap:10px; height:64px; color:#fff;
+    }
+    .top-nav .mark{
+        width:34px; height:34px; border-radius:7px; background:var(--laranja);
+        display:flex; align-items:center; justify-content:center; font-weight:800; font-size:.85rem; letter-spacing:.5px;
+    }
+    .top-nav .app-title{ font-size:.82rem; letter-spacing:.4px; opacity:.9; }
+    .top-nav .app-title b{ display:block; font-size:.95rem; letter-spacing:.2px; }
+
+    .hero{ max-width:640px; margin:0 auto 26px; text-align:center; color:#fff; }
+    .hero h1{ font-size:1.3rem; margin:0 0 6px; letter-spacing:.2px; }
+    .hero p{ font-size:.86rem; color:#D9D6D4; margin:0; line-height:1.5; }
+
+    .cards{ max-width:640px; margin:0 auto; display:grid; gap:16px; }
+    .card{
+        background:var(--papel); border-radius:12px; padding:22px 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 10px 30px rgba(20,20,20,.10);
+        text-decoration:none; color:inherit; display:flex; align-items:center; gap:16px;
+        transition:transform .12s, box-shadow .12s;
+        border-left:5px solid var(--laranja);
+    }
+    .card:active{ transform:scale(.98); }
+    .card .icone{
+        width:52px; height:52px; border-radius:10px; background:var(--fundo-app); flex:none;
+        display:flex; align-items:center; justify-content:center; font-size:1.6rem;
+    }
+    .card .texto b{ display:block; font-size:1.02rem; color:var(--marrom); letter-spacing:.1px; }
+    .card .texto span{ display:block; font-size:.8rem; color:var(--texto-suave); margin-top:3px; line-height:1.45; }
+    .card .seta{ margin-left:auto; color:var(--laranja); font-size:1.3rem; flex:none; }
+
+    .rodape{ max-width:640px; margin:30px auto 0; text-align:center; font-size:.72rem; color:var(--texto-suave); }
+    .rodape a{ color:var(--laranja-escuro); text-decoration:none; font-weight:600; }
+</style>
+</head>
+<body>
+
+<div class="top-nav">
+    <div class="mark">PE</div>
+    <div class="app-title"><b>Prumo Engenharia</b>Relatórios de Campo</div>
+</div>
+
+<div class="hero">
+    <h1>O que você vai registrar hoje?</h1>
+    <p>Escolha o tipo de relatório. Fotos, GPS e a pasta de trabalho escolhida são compartilhados entre os dois sistemas.</p>
+</div>
+
+<div class="cards">
+    <a class="card" href="relatorio-solda.html">
+        <div class="icone">🔥</div>
+        <div class="texto">
+            <b>Relatório de Solda</b>
+            <span>Controle de qualidade da soldagem aluminotérmica: checklist do processo, clima, fotos e geolocalização.</span>
+        </div>
+        <div class="seta">›</div>
+    </a>
+
+    <a class="card" href="inspecao-talas.html">
+        <div class="icone">🔩</div>
+        <div class="texto">
+            <b>Inspeção de Talas de Junção</b>
+            <span>Classificação de criticidade da tala, detecção de trincas em solda antiga/trilho, fotos e geolocalização.</span>
+        </div>
+        <div class="seta">›</div>
+    </a>
+</div>
+
+<div class="rodape">Prumo Engenharia — uso interno de campo</div>
+
+</body>
+</html>
