@@ -315,15 +315,15 @@
 
         <div class="pdf-block">
             <div class="header-bar">4. Registro Fotográfico</div>
-            <div class="form-section" style="background:#F5F8FB;">
-                <div class="grid-2">
-                    <div class="foto-slot"><label>Visão Geral da Junção:</label><input type="file" accept="image/*" onchange="preview(this,'v1')"><img id="v1" class="preview-img" src=""></div>
-                    <div class="foto-slot"><label>Detalhe da Falha (corrosão/folga):</label><input type="file" accept="image/*" onchange="preview(this,'v2')"><img id="v2" class="preview-img" src=""></div>
-                </div>
-                <div class="grid-2" style="margin-top:12px;">
-                    <div class="foto-slot"><label>Parafusos e Talas:</label><input type="file" accept="image/*" onchange="preview(this,'v3')"><img id="v3" class="preview-img" src=""></div>
-                    <div class="foto-slot"><label>Trilho Adjacente / Trinca (se houver):</label><input type="file" accept="image/*" onchange="preview(this,'v4')"><img id="v4" class="preview-img" src=""></div>
-                </div>
+        </div>
+        <div class="form-section" style="background:#F5F8FB;">
+            <div class="grid-2">
+                <div class="pdf-block foto-slot"><label>Visão Geral da Junção:</label><input type="file" accept="image/*" onchange="preview(this,'v1')"><img id="v1" class="preview-img" src=""></div>
+                <div class="pdf-block foto-slot"><label>Detalhe da Falha (corrosão/folga):</label><input type="file" accept="image/*" onchange="preview(this,'v2')"><img id="v2" class="preview-img" src=""></div>
+            </div>
+            <div class="grid-2" style="margin-top:12px;">
+                <div class="pdf-block foto-slot"><label>Parafusos e Talas:</label><input type="file" accept="image/*" onchange="preview(this,'v3')"><img id="v3" class="preview-img" src=""></div>
+                <div class="pdf-block foto-slot"><label>Trilho Adjacente / Trinca (se houver):</label><input type="file" accept="image/*" onchange="preview(this,'v4')"><img id="v4" class="preview-img" src=""></div>
             </div>
         </div>
 
@@ -562,15 +562,29 @@ function extrairGPSdaFoto(dataUrl) {
             }
             return;
         }
+        // Se já existe uma coordenada válida no formulário (digitada ou capturada pelo
+        // botão "Capturar GPS Agora"), não sobrescreve — a leitura da foto é só um
+        // complemento para quando ainda não há nada preenchido.
+        const latAtual = parseFloat(document.getElementById('lat').value);
+        const lonAtual = parseFloat(document.getElementById('long').value);
+        if (Number.isFinite(latAtual) && Number.isFinite(lonAtual)) {
+            console.log("Já existe uma coordenada válida no formulário — não sobrescrevendo com a da foto.");
+            return;
+        }
         const lat = converterGPS(gps[piexif.GPSIFD.GPSLatitude], gps[piexif.GPSIFD.GPSLatitudeRef]);
         const lon = converterGPS(gps[piexif.GPSIFD.GPSLongitude], gps[piexif.GPSIFD.GPSLongitudeRef]);
-        if (lat !== null && lon !== null) {
+        // Number.isFinite (não só "!== null") é essencial aqui: coordenadas malformadas
+        // podem produzir NaN em vez de lançar erro, e NaN !== null é true — sem essa
+        // checagem o formulário aceitava "NaN" como se fosse uma leitura bem-sucedida.
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
             document.getElementById('lat').value = lat.toFixed(6);
             document.getElementById('long').value = lon.toFixed(6);
             if (statusEl) statusEl.innerText = "📍 Latitude/Longitude reconhecidas automaticamente pela foto adicionada.";
             const linkMapa = document.getElementById('linkMapa');
             linkMapa.href = `https://www.google.com/maps?q=${lat},${lon}`;
             linkMapa.style.display = 'inline-block';
+        } else if (statusEl && !document.getElementById('lat').value) {
+            statusEl.innerText = "Esta foto tem metadados de localização incompletos ou inválidos — preencha Latitude/Longitude manualmente.";
         }
     } catch (error) {
         console.log("Erro ao ler metadados EXIF da foto:", error);
@@ -850,6 +864,38 @@ async function obterProximoNumero() {
 }
 
 /* ===================== GERAÇÃO DE PDF (por blocos, sem cortar conteúdo) ===================== */
+// Fatia um canvas mais alto que uma página A4 inteira em pedaços que cabem cada um
+// em sua própria página, desenhando cada pedaço com addImage. Retorna a posição Y
+// (em mm) logo após o último pedaço desenhado, na página em que ele terminou.
+function fatiarBlocoAltoEmPaginas(pdf, canvas, margin, pageH, footerH, usableW, maxAlturaPaginaMM, aoTrocarPagina) {
+    const pxPorMM = canvas.width / usableW;
+    const maxAlturaPaginaPx = Math.max(1, Math.floor(maxAlturaPaginaMM * pxPorMM));
+
+    let yPx = 0;
+    let y = margin;
+    let primeiroPedaco = true;
+    while (yPx < canvas.height) {
+        if (!primeiroPedaco) {
+            aoTrocarPagina();
+            y = margin;
+        }
+        const alturaFatiaPx = Math.min(maxAlturaPaginaPx, canvas.height - yPx);
+        const fatia = document.createElement('canvas');
+        fatia.width = canvas.width;
+        fatia.height = alturaFatiaPx;
+        const ctx = fatia.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, fatia.width, fatia.height);
+        ctx.drawImage(canvas, 0, yPx, canvas.width, alturaFatiaPx, 0, 0, canvas.width, alturaFatiaPx);
+        const alturaFatiaMM = (alturaFatiaPx * usableW) / canvas.width;
+        pdf.addImage(fatia.toDataURL('image/jpeg', 0.95), 'JPEG', margin, y, usableW, alturaFatiaMM);
+        y += alturaFatiaMM;
+        yPx += alturaFatiaPx;
+        primeiroPedaco = false;
+    }
+    return y + 4;
+}
+
 async function gerarPDF() {
     if (!validarCamposObrigatorios()) return;
 
@@ -887,7 +933,7 @@ async function gerarPDF() {
         const capturas = [];
         for (const bloco of blocos) {
             const c = await html2canvas(bloco, opcoesCaptura);
-            capturas.push({ h: (c.height * usableW) / c.width, dataUrl: c.toDataURL('image/jpeg', 0.95) });
+            capturas.push({ h: (c.height * usableW) / c.width, canvas: c });
         }
 
         let paginaAtual = 1;
@@ -895,16 +941,43 @@ async function gerarPDF() {
         pdf.addImage(chLetterhead.toDataURL('image/jpeg', 0.95), 'JPEG', margin, y, usableW, hLetterhead);
         y += hLetterhead + 4;
 
-        capturas.forEach(({ h, dataUrl }) => {
+        // Altura máxima que cabe numa página A4 totalmente vazia (sem nada desenhado antes).
+        const maxAlturaPaginaMM = pageH - margin - footerH - margin;
+
+        capturas.forEach(({ h, canvas }) => {
             const espacoDisponivel = pageH - margin - footerH - y;
-            if (h > espacoDisponivel && y > margin) {
+
+            if (h <= espacoDisponivel) {
+                // Cabe no espaço que sobrou na página atual.
+                pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', margin, y, usableW, h);
+                y += h + 4;
+                return;
+            }
+
+            // Não cabe no que sobrou: pula para uma página nova (se já havia algo desenhado nesta).
+            if (y > margin) {
                 desenharRodape(pdf, nomeBase, agora);
                 pdf.addPage();
                 paginaAtual++;
                 y = margin;
             }
-            pdf.addImage(dataUrl, 'JPEG', margin, y, usableW, h);
-            y += h + 4;
+
+            if (h <= maxAlturaPaginaMM) {
+                // Cabe inteiro numa página vazia.
+                pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', margin, y, usableW, h);
+                y += h + 4;
+            } else {
+                // Bloco mais alto que uma página A4 inteira (comum em formulários vistos no
+                // celular, onde os campos empilham em coluna única): em vez de desenhar a
+                // imagem inteira e deixar o final vazar para fora da página — perdendo essa
+                // informação —, fatia o próprio canvas em pedaços do tamanho de uma página e
+                // desenha cada pedaço em sua própria página. Nada do conteúdo é descartado.
+                y = fatiarBlocoAltoEmPaginas(pdf, canvas, margin, pageH, footerH, usableW, maxAlturaPaginaMM, () => {
+                    desenharRodape(pdf, nomeBase, agora);
+                    pdf.addPage();
+                    paginaAtual++;
+                });
+            }
         });
         desenharRodape(pdf, nomeBase, agora);
 
